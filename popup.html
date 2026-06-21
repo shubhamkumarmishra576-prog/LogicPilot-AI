@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LogicPilot AI</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>LogicPilot AI</h1>
+    <p class="subtitle">Think. Decide. Execute.</p>
+
+    <div class="card">
+
+        <label>Starting Choice</label>
+
+        <select id="choice">
+            <option value="big">Big</option>
+            <option value="small">Small</option>
+        </select>
+
+        <label>Attempts</label>
+
+        <input
+            type="number"
+            id="attempts"
+            min="1"
+            max="100"
+            value="5"
+        >
+
+        <button id="generateBtn">
+            Generate Strategy
+        </button>
+
+        <button id="clearBtn">
+            🗑 Clear Strategy
+         </button>
+
+    </div>
+
+    <div class="engine-card">
+
+        <h3>🤖 LogicPilot AI Engine</h3>
+
+        <div class="test-panel">
+            <button id="winBtn">
+                Simulate WIN
+            </button>
+
+            <button id="lossBtn">
+                Simulate LOSS
+            </button>
+        </div>
+
+    </div>
+
+    <div id="strategyContainer"></div>
+
+    <div class="control-panel">
+
+        <h3>Control Center</h3>
+
+        <div class="status-box">
+
+            <p>
+                Status :
+                <span id="engineStatus">
+                    🔴 Stopped
+                </span>
+            </p>
+
+            <p>
+                Current Attempt :
+                <span id="currentAttempt">
+                    0
+                </span>
+            </p>
+
+            <p>
+                Last Result :
+                <span id="lastResult">
+                    -
+                </span>
+            </p>
+
+            <p>
+                Next Choice :
+                <span id="nextChoice">
+                    -
+                </span>
+            </p>
+
+            <p>
+                Next Amount :
+                <span id="nextAmount">
+                    -
+                </span>
+            </p>
+
+            <h3>
+                Attempt Progress
+            </h3>
+
+            <div id="attemptProgress"></div>
+
+        </div>
+
+        <div class="control-buttons">
+
+            <button id="startBtn">
+                ▶ Start
+            </button>
+
+            <button id="pauseBtn">
+                ⏸ Pause
+            </button>
+
+            <button id="stopBtn">
+                ⏹ Stop
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="strategy.js"></script>
+<script src="automation.js"></script>
+<script src="popup.js"></script>
+
+</body>
+</html>

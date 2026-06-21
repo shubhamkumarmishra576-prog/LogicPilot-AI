@@ -1,0 +1,219 @@
+body{
+    width:420px;
+    min-height:600px;
+
+    margin:0;
+    padding:15px;
+
+    background:#0f172a;
+    color:white;
+
+    font-family:Arial, sans-serif;
+}
+
+.container{
+    width:100%;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:5px;
+}
+
+.subtitle{
+    text-align:center;
+    color:#94a3b8;
+    margin-bottom:20px;
+}
+
+.card{
+    background:#1e293b;
+
+    padding:15px;
+
+    border-radius:12px;
+
+    margin-bottom:15px;
+}
+
+label{
+    display:block;
+
+    margin-top:10px;
+    margin-bottom:5px;
+}
+
+select,
+input{
+
+    width:100%;
+
+    padding:10px;
+
+    border:none;
+
+    border-radius:8px;
+
+    margin-bottom:10px;
+}
+
+button{
+
+    width:100%;
+
+    padding:12px;
+
+    border:none;
+
+    border-radius:8px;
+
+    cursor:pointer;
+
+    background:#3b82f6;
+
+    color:white;
+
+    font-weight:bold;
+}
+
+.attempt-card{
+
+    background:#1e293b;
+
+    margin-top:10px;
+
+    padding:12px;
+
+    border-radius:10px;
+}
+.accordion-card{
+
+    background:#1e293b;
+
+    border-radius:12px;
+
+    margin-top:12px;
+
+    overflow:hidden;
+}
+
+.accordion-header{
+
+    padding:14px;
+
+    cursor:pointer;
+
+    font-weight:bold;
+
+    background:#334155;
+}
+
+.accordion-header:hover{
+
+    background:#475569;
+}
+
+.accordion-body{
+
+    display:none;
+
+    padding:15px;
+}
+
+.accordion-body.active{
+
+    display:block;
+}
+
+.accordion-body h4{
+
+    color:#60a5fa;
+
+    margin-top:5px;
+}
+
+.accordion-body hr{
+
+    border:none;
+
+    border-top:1px solid #475569;
+
+    margin:15px 0;
+}
+
+.save-btn{
+
+    margin-top:10px;
+
+    background:#22c55e;
+}
+.copy-btn{
+
+    margin-top:10px;
+
+    margin-bottom:10px;
+
+    background:#f59e0b;
+}
+.control-panel{
+
+    margin-top:20px;
+
+    background:#1e293b;
+
+    padding:15px;
+
+    border-radius:12px;
+}
+
+.status-box{
+
+    margin-bottom:15px;
+}
+
+.status-box p{
+
+    margin:8px 0;
+}
+
+.control-buttons{
+
+    display:flex;
+
+    gap:8px;
+}
+
+.control-buttons button{
+
+    flex:1;
+}
+
+#startBtn{
+
+    background:#16a34a;
+}
+
+#pauseBtn{
+
+    background:#f59e0b;
+}
+
+#stopBtn{
+
+    background:#dc2626;
+}
+.engine-card{
+
+    background:#1e293b;
+
+    padding:15px;
+
+    border-radius:12px;
+
+    margin-bottom:15px;
+}
+
+.engine-card p{
+
+    margin:6px 0;
+}

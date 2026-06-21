@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "LogicPilot AI",
+  "version": "1.0.0",
+  "description": "Think. Decide. Execute.",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs",
+    "scripting"
+  ],
+
+  "host_permissions": [
+    "https://damanworld.org/*",
+    "https://damanapp.download/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://damanworld.org/*",
+        "https://damanapp.download/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  }
+}
