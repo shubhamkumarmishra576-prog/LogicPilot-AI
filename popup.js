@@ -1,6 +1,5 @@
 let strategyData = {};
-
-initializeApp();
+let persistedStateRestored = false;
 
 const currentAttemptUI =
 document.getElementById(
@@ -31,6 +30,87 @@ const attemptProgressUI =
 document.getElementById(
     "attemptProgress"
 );
+
+function getCurrentAttemptNumber() {
+    return Number(
+        String(currentAttemptUI.textContent).trim()
+    ) || 0;
+}
+
+function getTotalAttemptsNumber() {
+    return Number(
+        document.getElementById("attempts")?.value
+    ) || 0;
+}
+
+async function syncAttemptUI(
+    currentAttempt,
+    totalAttempts,
+    persist = false
+) {
+    currentAttemptUI.textContent =
+        String(currentAttempt);
+    Engine.currentAttempt =
+        currentAttempt;
+
+    if (totalAttempts > 0) {
+        updateAttemptProgress(
+            currentAttempt,
+            totalAttempts
+        );
+    }
+
+    if (persist) {
+        await saveState();
+    }
+}
+
+function updateAttemptProgress(
+    currentAttempt,
+    totalAttempts
+) {
+
+    if (!attemptProgressUI) {
+        return;
+    }
+
+    attemptProgressUI.innerHTML = "";
+
+    for (
+        let i = 1;
+        i <= totalAttempts;
+        i++
+    ) {
+
+        const div =
+            document.createElement("div");
+
+        let status = "⏳ Pending";
+
+        if (i < currentAttempt) {
+            status = "✅ Completed";
+        }
+
+        if (i === currentAttempt) {
+            status = "🟢 Running";
+        }
+
+        div.className =
+            "attempt-item";
+
+        div.textContent =
+            `Attempt ${i} → ${status}`;
+
+        attemptProgressUI.appendChild(
+            div
+        );
+    }
+}
+
+const activityLog =
+    document.getElementById(
+        "activityLog"
+    );
 
 
 const generateBtn =
@@ -73,7 +153,175 @@ function ensureStrategyContainerListeners() {
     });
 }
 
-function handleSaveAttempt(btn) {
+function renderLogs(logs) {
+
+    activityLog.innerHTML = "";
+
+    logs.forEach((log) => {
+
+        const div =
+            document.createElement("div");
+
+        div.className = "log-item";
+
+        div.textContent = log;
+
+        activityLog.appendChild(div);
+    });
+}
+
+async function addLog(message) {
+
+    const now = new Date();
+
+    const time =
+        now.toLocaleTimeString();
+
+    const entry =
+        `${time} → ${message}`;
+
+    const data =
+        await chrome.storage.local.get(
+            ["activityLogs"]
+        );
+
+    const logs =
+        data.activityLogs || [];
+
+    logs.unshift(entry);
+
+    if (logs.length > 50) {
+        logs.pop();
+    }
+
+    await chrome.storage.local.set({
+        activityLogs: logs
+    });
+
+    renderLogs(logs);
+}
+
+async function saveState() {
+
+    const data =
+        await chrome.storage.local.get(
+            ["activityLogs"]
+        );
+
+    // #region agent log
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:saveState',message:'saveState called',data:{currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt,stack:new Error().stack?.split('\n').slice(1,4).join('|')},timestamp:Date.now(),hypothesisId:'B',runId:'pre-fix'})}).catch(()=>{});
+    // #endregion
+
+    await chrome.storage.local.set({
+
+        engineStatus:
+            engineStatusUI.textContent,
+
+        currentAttempt:
+            String(currentAttemptUI.textContent).trim(),
+
+        totalAttempts:
+            Number(
+                document.getElementById(
+                    "attempts"
+                ).value
+            ),
+
+        lastResult:
+            lastResultUI.textContent,
+
+        nextChoice:
+            nextChoiceUI.textContent,
+
+        nextAmount:
+            nextAmountUI.textContent,
+
+        activityLogs:
+            data.activityLogs || []
+    });
+}
+
+async function restorePersistedState() {
+
+    if (persistedStateRestored) {
+        return null;
+    }
+
+    const data =
+        await chrome.storage.local.get([
+
+            "activityLogs",
+
+            "engineStatus",
+
+            "currentAttempt",
+
+            "totalAttempts",
+
+            "lastResult",
+
+            "nextChoice",
+
+            "nextAmount"
+        ]);
+
+    renderLogs(
+        data.activityLogs || []
+    );
+
+    engineStatusUI.textContent =
+        data.engineStatus ?? "🔴 Stopped";
+
+    currentAttemptUI.textContent =
+        data.currentAttempt ?? "0";
+
+    Engine.currentAttempt =
+        getCurrentAttemptNumber();
+
+    if (data.totalAttempts != null) {
+        document.getElementById(
+            "attempts"
+        ).value = data.totalAttempts;
+    }
+
+    lastResultUI.textContent =
+        data.lastResult ?? "-";
+
+    nextChoiceUI.textContent =
+        data.nextChoice ?? "-";
+
+    nextAmountUI.textContent =
+        data.nextAmount ?? "-";
+
+    const restoredAttempt =
+        getCurrentAttemptNumber();
+    const restoredTotal =
+        Number(data.totalAttempts) || 0;
+
+    if (
+        restoredTotal > 0 &&
+        restoredAttempt > 0
+    ) {
+        updateAttemptProgress(
+            restoredAttempt,
+            restoredTotal
+        );
+    }
+
+    persistedStateRestored = true;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:restorePersistedState',message:'state restored from storage',data:{storedCurrentAttempt:data.currentAttempt,storedTotalAttempts:data.totalAttempts,uiAfterRestore:currentAttemptUI.textContent,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
+    // #endregion
+
+    console.log(
+        "STATE RESTORED"
+    );
+
+    return data;
+}
+
+async function handleSaveAttempt(btn) {
     const attempt = btn.dataset.attempt;
 
     console.log(
@@ -109,8 +357,11 @@ function handleSaveAttempt(btn) {
     btn.innerText = "✅ Saved";
     btn.style.background = "#16a34a";
 
-    Engine.currentAttempt = Number(attempt);
-    currentAttemptUI.innerText = Engine.currentAttempt;
+    await syncAttemptUI(
+        Number(attempt),
+        getTotalAttemptsNumber(),
+        true
+    );
 }
 
 function handleCopyAttempt(btn) {
@@ -128,6 +379,15 @@ function handleCopyAttempt(btn) {
     restoreValues();
     alert(`Attempt ${previous} copied`);
 }
+
+document.addEventListener(
+    "DOMContentLoaded",
+    async () => {
+
+        await restorePersistedState();
+        await initializeApp();
+    }
+);
 
 ensureStrategyContainerListeners();
 
@@ -278,17 +538,18 @@ generateBtn.addEventListener(
             "GENERATE CLICKED"
         );
 
-        generateStrategy();
+        await syncAttemptUI(
+            1,
+            getTotalAttemptsNumber()
+        );
 
-        const result = await sendToActiveTab({
-            action: "CLICK_BIG"
+        await generateStrategy({
+            isNewGeneration: true
         });
 
         console.log(
-            "CLICK_BIG RESULT:",
-            result
+            "STRATEGY GENERATED"
         );
-
     }
 );
 
@@ -302,23 +563,39 @@ async function initializeApp(){
 
     await loadSavedStrategy();
 
+    const data =
+        await restorePersistedState();
+
+    // #region agent log
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'after loadSavedStrategy',data:{strategyKeys:Object.keys(strategyData).length,currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt,storedTotalAttempts:data?.totalAttempts,docReady:document.readyState},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+    // #endregion
+
     if(
         Object.keys(strategyData).length > 0
     ){
 
         const savedAttempts =
-        Object.keys(
-            strategyData
-        ).length;
+            data?.totalAttempts ??
+            Object.keys(
+                strategyData
+            ).length;
 
         document.getElementById(
             "attempts"
         ).value =
         savedAttempts;
 
-        generateStrategy();
+        // #region agent log
+        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'calling generateStrategy on reopen',data:{savedAttempts,currentAttemptUIBefore:currentAttemptUI?.textContent},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+        // #endregion
+
+        await generateStrategy();
 
         restoreValues();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'after generateStrategy on reopen',data:{currentAttemptUIAfter:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+        // #endregion
 
     }
 
@@ -337,13 +614,18 @@ async function loadSavedStrategy() {
     );
 }
 
-function generateStrategy() {
+async function generateStrategy(options = {}) {
 
     strategyContainer.innerHTML = "";
 
     const attempts = parseInt(
         document.getElementById("attempts").value
     );
+
+    const currentAttempt =
+        options.isNewGeneration
+            ? 1
+            : getCurrentAttemptNumber() || 1;
 
     for (let i = 1; i <= attempts; i++) {
 
@@ -460,11 +742,27 @@ function generateStrategy() {
             `;
         }
 
-        strategyContainer.appendChild(
+         strategyContainer.appendChild(
             card
         );
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:generateStrategy',message:'about to updateAttemptProgress',data:{currentAttempt,attempts,isNewGeneration:!!options.isNewGeneration,currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+    // #endregion
+
+    await syncAttemptUI(
+        currentAttempt,
+        attempts
+    );
+
+    if (options.isNewGeneration) {
+        await addLog(
+            `Generated ${attempts} attempts`
+        );
+    }
+
+    await saveState();
 }
 
 function restoreValues(){
@@ -585,7 +883,7 @@ if(winBtn){
 
     winBtn.addEventListener(
         "click",
-        ()=>{
+        async ()=>{
 
             Engine.processResult(
                 "WIN"
@@ -618,8 +916,11 @@ if(
 
 }
 
-            currentAttemptUI.innerText =
-            Engine.currentAttempt;
+            await syncAttemptUI(
+                Engine.currentAttempt,
+                getTotalAttemptsNumber(),
+                true
+            );
 
         }
     );
@@ -630,7 +931,7 @@ if(lossBtn){
 
     lossBtn.addEventListener(
         "click",
-        ()=>{
+        async ()=>{
 
             Engine.processResult(
                 "LOSS"
@@ -663,10 +964,11 @@ if(
 
 }
 
-            currentAttemptUI.innerText =
-Engine.currentAttempt;
-
-updateAttemptProgress();
+            await syncAttemptUI(
+                Engine.currentAttempt,
+                getTotalAttemptsNumber(),
+                true
+            );
 
         }
     );
@@ -679,27 +981,58 @@ const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn = document.getElementById("stopBtn");
 
 if (startBtn) {
-    startBtn.addEventListener("click", () => {
-        Engine.start();
-        engineStatusUI.innerText = "🟢 Running";
-    });
+    startBtn.addEventListener(
+    "click",
+    async () => {
+
+        engineStatusUI.textContent =
+            "🟢 Running";
+
+        await addLog(
+            "Automation Started"
+        );
+
+        await saveState();
+    }
+);
+
 }
 
 if (pauseBtn) {
-    pauseBtn.addEventListener("click", () => {
-        Engine.pause();
-        engineStatusUI.innerText = "⏸ Paused";
-    });
+    pauseBtn.addEventListener(
+    "click",
+    async () => {
+
+        engineStatusUI.textContent =
+            "🟡 Paused";
+
+        await addLog(
+            "Automation Paused"
+        );
+
+        await saveState();
+    }
+);
+
 }
 
 if (stopBtn) {
-    stopBtn.addEventListener("click", () => {
-        Engine.stop();
-        engineStatusUI.innerText = "🔴 Stopped";
-        currentAttemptUI.innerText = "0";
-    });
-}
+    stopBtn.addEventListener(
+    "click",
+    async () => {
 
+        engineStatusUI.textContent =
+            "🔴 Stopped";
+
+        await addLog(
+            "Automation Stopped"
+        );
+
+        await saveState();
+    }
+);
+
+}
 
 function clearStrategy(){
 
@@ -738,52 +1071,5 @@ function clearStrategy(){
 
         }
     );
-
-}
-function updateAttemptProgress(){
-
-    if(!attemptProgressUI){
-        return;
-    }
-
-    attemptProgressUI.innerHTML = "";
-
-    const totalAttempts =
-    Number(
-        document.getElementById(
-            "attempts"
-        ).value || 0
-    );
-
-    for(
-        let i = 1;
-        i <= totalAttempts;
-        i++
-    ){
-
-        const row =
-        document.createElement("div");
-
-        let icon = "⏳";
-
-        if(
-            i < Engine.currentAttempt
-        ){
-            icon = "✅";
-        }
-        else if(
-            i === Engine.currentAttempt
-        ){
-            icon = "🔄";
-        }
-
-        row.innerText =
-        `${icon} Attempt ${i}`;
-
-        attemptProgressUI.appendChild(
-            row
-        );
-
-    }
 
 }

@@ -217,3 +217,37 @@ button{
 
     margin:6px 0;
 }
+.activity-log {
+    max-height: 180px;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding: 10px;
+
+    background: #111827;
+    border-radius: 8px;
+
+    font-size: 12px;
+}
+
+.log-item {
+    padding: 6px 0;
+    border-bottom: 1px solid #374151;
+
+    color: #d1d5db;
+}
+
+.log-item:last-child {
+    border-bottom: none;
+}
+.attempt-item {
+
+    padding: 8px;
+
+    margin-top: 6px;
+
+    background: #1f2937;
+
+    border-radius: 6px;
+
+    font-size: 12px;
+}
