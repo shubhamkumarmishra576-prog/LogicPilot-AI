@@ -1,46 +1,38 @@
+import {
+
+    engineState,
+
+    startEngine,
+
+    pauseEngine,
+
+    stopEngine
+
+} from "./workflowEngine.js";
+
 let strategyData = {};
+
 let persistedStateRestored = false;
+let lastRestoredData = null;
 
-const currentAttemptUI =
-document.getElementById(
-    "currentAttempt"
-);
+let currentAttemptUI = null;
+let nextChoiceUI = null;
+let nextAmountUI = null;
+let engineStatusUI = null;
+let lastResultUI = null;
+let attemptProgressUI = null;
 
-const nextChoiceUI =
-document.getElementById(
-    "nextChoice"
-);
-
-const nextAmountUI =
-document.getElementById(
-    "nextAmount"
-);
-
-const engineStatusUI =
-document.getElementById(
-    "engineStatus"
-);
-const lastResultUI =
-document.getElementById(
-    "lastResult"
-);
-
-
-const attemptProgressUI =
-document.getElementById(
-    "attemptProgress"
-);
-
-function getCurrentAttemptNumber() {
-    return Number(
-        String(currentAttemptUI.textContent).trim()
-    ) || 0;
-}
-
-function getTotalAttemptsNumber() {
-    return Number(
-        document.getElementById("attempts")?.value
-    ) || 0;
+function syncEngineStateFromUI() {
+    engineState.currentAttempt =
+        getCurrentAttemptNumber();
+    engineState.totalAttempts =
+        getTotalAttemptsNumber();
+    engineState.status =
+        engineStatusUI.textContent;
+    engineState.lastResult =
+        lastResultUI.textContent;
+    Engine.currentAttempt =
+        engineState.currentAttempt;
 }
 
 async function syncAttemptUI(
@@ -50,6 +42,10 @@ async function syncAttemptUI(
 ) {
     currentAttemptUI.textContent =
         String(currentAttempt);
+    engineState.currentAttempt =
+        currentAttempt;
+    engineState.totalAttempts =
+        totalAttempts;
     Engine.currentAttempt =
         currentAttempt;
 
@@ -63,6 +59,18 @@ async function syncAttemptUI(
     if (persist) {
         await saveState();
     }
+}
+
+function getCurrentAttemptNumber() {
+    return Number(
+        String(currentAttemptUI.textContent).trim()
+    ) || 0;
+}
+
+function getTotalAttemptsNumber() {
+    return Number(
+        document.getElementById("attempts")?.value
+    ) || 0;
 }
 
 function updateAttemptProgress(
@@ -107,47 +115,64 @@ function updateAttemptProgress(
     }
 }
 
-const activityLog =
-    document.getElementById(
-        "activityLog"
-    );
-
-
-const generateBtn =
-document.getElementById("generateBtn");
-
-const clearBtn =
-document.getElementById("clearBtn");
-
-const strategyContainer =
-    document.getElementById("strategyContainer");
-
+let activityLog = null;
+let generateBtn = null;
+let clearBtn = null;
+let strategyContainer = null;
 let strategyListenersInitialized = false;
 
 function ensureStrategyContainerListeners() {
+
+    console.log("LISTENERS ATTACHED");
+
     if (strategyListenersInitialized) {
         return;
     }
+
     strategyListenersInitialized = true;
 
     strategyContainer.addEventListener("click", (event) => {
-        const header = event.target.closest(".accordion-header");
+
+        const header =
+            event.target.closest(".accordion-header");
+
         if (header) {
-            const body = header.nextElementSibling;
+
+            console.log("HEADER CLICKED");
+
+            const body =
+                header.nextElementSibling;
+
             if (body) {
+
+                console.log("BODY FOUND");
+
                 body.classList.toggle("active");
+
+                console.log(
+                    "BODY CLASS:",
+                    body.className
+                );
             }
+
             return;
         }
 
-        const saveBtn = event.target.closest(".save-btn");
+        const saveBtn =
+            event.target.closest(".save-btn");
+
         if (saveBtn) {
+
             handleSaveAttempt(saveBtn);
+
             return;
         }
 
-        const copyBtn = event.target.closest(".copy-btn");
+        const copyBtn =
+            event.target.closest(".copy-btn");
+
         if (copyBtn) {
+
             handleCopyAttempt(copyBtn);
         }
     });
@@ -175,7 +200,7 @@ async function addLog(message) {
     const now = new Date();
 
     const time =
-        now.toLocaleTimeString();
+    now.toLocaleTimeString();
 
     const entry =
         `${time} → ${message}`;
@@ -208,11 +233,15 @@ async function saveState() {
             ["activityLogs"]
         );
 
+    syncEngineStateFromUI();
+
     // #region agent log
-    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:saveState',message:'saveState called',data:{currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt,stack:new Error().stack?.split('\n').slice(1,4).join('|')},timestamp:Date.now(),hypothesisId:'B',runId:'pre-fix'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:saveState',message:'saveState called',data:{engineStateCurrentAttempt:engineState.currentAttempt,currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt,stack:new Error().stack?.split('\n').slice(1,4).join('|')},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
     // #endregion
 
     await chrome.storage.local.set({
+
+        engineState,
 
         engineStatus:
             engineStatusUI.textContent,
@@ -221,11 +250,7 @@ async function saveState() {
             String(currentAttemptUI.textContent).trim(),
 
         totalAttempts:
-            Number(
-                document.getElementById(
-                    "attempts"
-                ).value
-            ),
+            getTotalAttemptsNumber(),
 
         lastResult:
             lastResultUI.textContent,
@@ -244,11 +269,18 @@ async function saveState() {
 async function restorePersistedState() {
 
     if (persistedStateRestored) {
-        return null;
+        return lastRestoredData;
     }
+
+    console.log(
+        "BEFORE RESTORE",
+        engineState
+    );
 
     const data =
         await chrome.storage.local.get([
+
+            "engineState",
 
             "activityLogs",
 
@@ -273,19 +305,24 @@ async function restorePersistedState() {
         data.engineStatus ?? "🔴 Stopped";
 
     currentAttemptUI.textContent =
-        data.currentAttempt ?? "0";
-
-    Engine.currentAttempt =
-        getCurrentAttemptNumber();
+        data.currentAttempt ??
+        String(data.engineState?.currentAttempt ?? "0");
 
     if (data.totalAttempts != null) {
         document.getElementById(
             "attempts"
         ).value = data.totalAttempts;
+    } else if (data.engineState?.totalAttempts != null) {
+        document.getElementById(
+            "attempts"
+        ).value =
+            data.engineState.totalAttempts;
     }
 
     lastResultUI.textContent =
-        data.lastResult ?? "-";
+        data.lastResult ??
+        data.engineState?.lastResult ??
+        "-";
 
     nextChoiceUI.textContent =
         data.nextChoice ?? "-";
@@ -293,10 +330,12 @@ async function restorePersistedState() {
     nextAmountUI.textContent =
         data.nextAmount ?? "-";
 
+    syncEngineStateFromUI();
+
     const restoredAttempt =
         getCurrentAttemptNumber();
     const restoredTotal =
-        Number(data.totalAttempts) || 0;
+        getTotalAttemptsNumber();
 
     if (
         restoredTotal > 0 &&
@@ -309,9 +348,15 @@ async function restorePersistedState() {
     }
 
     persistedStateRestored = true;
+    lastRestoredData = data;
+
+    console.log(
+        "AFTER RESTORE",
+        engineState
+    );
 
     // #region agent log
-    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:restorePersistedState',message:'state restored from storage',data:{storedCurrentAttempt:data.currentAttempt,storedTotalAttempts:data.totalAttempts,uiAfterRestore:currentAttemptUI.textContent,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:restorePersistedState',message:'state restored from storage',data:{storedCurrentAttempt:data.currentAttempt,storedEngineStateAttempt:data.engineState?.currentAttempt,storedTotalAttempts:data.totalAttempts,uiAfterRestore:currentAttemptUI.textContent,engineStateCurrentAttempt:engineState.currentAttempt,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
     // #endregion
 
     console.log(
@@ -322,6 +367,7 @@ async function restorePersistedState() {
 }
 
 async function handleSaveAttempt(btn) {
+
     const attempt = btn.dataset.attempt;
 
     console.log(
@@ -330,38 +376,138 @@ async function handleSaveAttempt(btn) {
     );
 
     if (attempt === "1") {
+
         strategyData[attempt] = {
-            choice: document.getElementById(`choice-${attempt}`).value,
-            amount: Number(document.getElementById(`amount-${attempt}`).value)
+
+            choice:
+                document.getElementById(
+                    `choice-${attempt}`
+                ).value,
+
+            amount:
+                Number(
+                    document.getElementById(
+                        `amount-${attempt}`
+                    ).value
+                )
         };
+
     } else {
+
         strategyData[attempt] = {
+
             onWin: {
-                choice: document.getElementById(`win-choice-${attempt}`).value,
-                amount: Number(document.getElementById(`win-amount-${attempt}`).value)
+
+                choice:
+                    document.getElementById(
+                        `win-choice-${attempt}`
+                    ).value,
+
+                amount:
+                    Number(
+                        document.getElementById(
+                            `win-amount-${attempt}`
+                        ).value
+                    )
             },
+
             onLoss: {
-                choice: document.getElementById(`loss-choice-${attempt}`).value,
-                amount: Number(document.getElementById(`loss-amount-${attempt}`).value)
+
+                choice:
+                    document.getElementById(
+                        `loss-choice-${attempt}`
+                    ).value,
+
+                amount:
+                    Number(
+                        document.getElementById(
+                            `loss-amount-${attempt}`
+                        ).value
+                    )
             }
         };
     }
 
-    StrategyManager.save(strategyData);
+    StrategyManager.save(
+        strategyData
+    );
 
     console.log(
         "AFTER SAVE",
-        JSON.stringify(strategyData, null, 2)
+        JSON.stringify(
+            strategyData,
+            null,
+            2
+        )
     );
 
-    btn.innerText = "✅ Saved";
-    btn.style.background = "#16a34a";
+    btn.innerText =
+        "✅ Saved";
+
+    btn.style.background =
+        "#16a34a";
 
     await syncAttemptUI(
+
         Number(attempt),
+
         getTotalAttemptsNumber(),
+
         true
     );
+}
+function buildWorkflow() {
+
+    const workflow = {};
+    const attemptNumbers = Object.keys(strategyData).map(Number).sort((a, b) => a - b);
+
+    if (attemptNumbers.length === 0) {
+        console.error("No strategy data found");
+        return workflow;
+    }
+
+    attemptNumbers.forEach((attemptNum, index) => {
+        const strategy = strategyData[attemptNum];
+
+        if (!strategy) {
+            console.error(`Missing strategy for attempt ${attemptNum}`);
+            return;
+        }
+
+        if (attemptNum === 1) {
+            if (!strategy.choice || !strategy.amount || strategy.amount <= 0) {
+                console.error(`Invalid strategy for attempt ${attemptNum}: missing choice or invalid amount`);
+                return;
+            }
+        } else {
+            if (!strategy.onWin || !strategy.onLoss) {
+                console.error(`Invalid strategy for attempt ${attemptNum}: missing onWin or onLoss`);
+                return;
+            }
+            if (!strategy.onWin.choice || !strategy.onWin.amount || strategy.onWin.amount <= 0) {
+                console.error(`Invalid onWin strategy for attempt ${attemptNum}`);
+                return;
+            }
+            if (!strategy.onLoss.choice || !strategy.onLoss.amount || strategy.onLoss.amount <= 0) {
+                console.error(`Invalid onLoss strategy for attempt ${attemptNum}`);
+                return;
+            }
+        }
+
+        workflow[attemptNum] = {
+            stepId: attemptNum,
+            action: "ACTION_PRIMARY",
+            nextStep: attemptNum < attemptNumbers.length ? attemptNumbers[index + 1] : null,
+            strategy: strategy
+        };
+    });
+
+    console.log(
+        "WORKFLOW GENERATED:",
+        workflow
+    );
+
+    return workflow;
 }
 
 function handleCopyAttempt(btn) {
@@ -384,12 +530,208 @@ document.addEventListener(
     "DOMContentLoaded",
     async () => {
 
+        currentAttemptUI = document.getElementById("currentAttempt");
+        nextChoiceUI = document.getElementById("nextChoice");
+        nextAmountUI = document.getElementById("nextAmount");
+        engineStatusUI = document.getElementById("engineStatus");
+        lastResultUI = document.getElementById("lastResult");
+        attemptProgressUI = document.getElementById("attemptProgress");
+        activityLog = document.getElementById("activityLog");
+        generateBtn = document.getElementById("generateBtn");
+        clearBtn = document.getElementById("clearBtn");
+        strategyContainer = document.getElementById("strategyContainer");
+
         await restorePersistedState();
         await initializeApp();
-    }
+
+        const startBtn = document.getElementById("startBtn");
+        const pauseBtn = document.getElementById("pauseBtn");
+        const stopBtn = document.getElementById("stopBtn");
+
+        if (startBtn) {
+
+            startBtn.addEventListener(
+
+                "click",
+
+                async () => {
+
+                    console.log(
+                    "START CLICKED"
+                    );
+
+                    console.log(
+                    "STRATEGY DATA:",
+                         strategyData
+                    );
+
+                    console.log(
+                    "ENGINE STATE:",
+                        engineState
+                    );
+
+                    try {
+
+                        if (Object.keys(strategyData).length === 0) {
+                            alert("Please generate and save a strategy first!");
+                            return;
+                        }
+
+                        const workflow =
+                            buildWorkflow();
+
+                        await startEngine(
+                            workflow
+                        );
+
+                        engineStatusUI.textContent =
+                            "🟢 Running";
+
+                        currentAttemptUI.textContent =
+                            String(engineState.currentAttempt);
+
+                        await addLog(
+                            `Automation Started - Attempt ${engineState.currentAttempt}`
+                        );
+
+                        await saveState();
+
+                        console.log(
+                            "START SUCCESS",
+                            "currentAttempt:",
+                            engineState.currentAttempt
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "START ERROR:",
+                            error
+                        );
+                    }
+                }
+            );
+
+        } else {
+
+            console.error(
+                "startBtn not found"
+            );
+        }
+
+        if (pauseBtn) {
+            pauseBtn.addEventListener(
+            "click",
+            async () => {
+
+                engineStatusUI.textContent =
+                    "🟡 Paused";
+
+                await addLog(
+                    "Automation Paused"
+                );
+
+                await saveState();
+            }
 );
 
-ensureStrategyContainerListeners();
+        }
+
+        if (stopBtn) {
+            stopBtn.addEventListener(
+            "click",
+            async () => {
+
+                engineStatusUI.textContent =
+                    "🔴 Stopped";
+
+                await addLog(
+                    "Automation Stopped"
+                );
+
+                await saveState();
+            }
+);
+
+        }
+
+        if (generateBtn) {
+            generateBtn.addEventListener(
+                "click",
+                async () => {
+                    console.log("GENERATE CLICKED");
+                    await syncAttemptUI(
+                        1,
+                        getTotalAttemptsNumber()
+                    );
+                    await generateStrategy({
+                        isNewGeneration: true
+                    });
+                
+                    console.log("STRATEGY GENERATED");
+                }
+            );
+        }
+
+        if (clearBtn) {
+            clearBtn.addEventListener(
+                "click",
+                clearStrategy
+            );
+        }
+
+        const winBtn = document.getElementById("winBtn");
+        const lossBtn = document.getElementById("lossBtn");
+
+        if (winBtn) {
+            winBtn.addEventListener(
+                "click",
+                async () => {
+                    Engine.processResult("WIN");
+                    lastResultUI.innerText = "WIN";
+
+                    const nextData = strategyData[Engine.currentAttempt];
+
+                    if (nextData && nextData.onWin) {
+                        nextChoiceUI.innerText = nextData.onWin.choice;
+                        nextAmountUI.innerText = nextData.onWin.amount;
+                        console.log("NEXT BET", nextData.onWin);
+                    }
+
+                    await syncAttemptUI(
+                        Engine.currentAttempt,
+                        getTotalAttemptsNumber(),
+                        true
+                    );
+                }
+            );
+        }
+
+        if (lossBtn) {
+            lossBtn.addEventListener(
+                "click",
+                async () => {
+                    Engine.processResult("LOSS");
+                    lastResultUI.innerText = "LOSS";
+
+                    const nextData = strategyData[Engine.currentAttempt];
+
+                    if (nextData && nextData.onLoss) {
+                        nextChoiceUI.innerText = nextData.onLoss.choice;
+                        nextAmountUI.innerText = nextData.onLoss.amount;
+                        console.log("NEXT BET", nextData.onLoss);
+                    }
+
+                    await syncAttemptUI(
+                        Engine.currentAttempt,
+                        getTotalAttemptsNumber(),
+                        true
+                    );
+                }
+            );
+        }
+    }
+);
 
 function isRestrictedTabUrl(url) {
     if (!url) {
@@ -530,36 +872,13 @@ function sendToActiveTab(message) {
     });
 }
 
-generateBtn.addEventListener(
-    "click",
-    async () => {
-
-        console.log(
-            "GENERATE CLICKED"
-        );
-
-        await syncAttemptUI(
-            1,
-            getTotalAttemptsNumber()
-        );
-
-        await generateStrategy({
-            isNewGeneration: true
-        });
-
-        console.log(
-            "STRATEGY GENERATED"
-        );
-    }
-);
-
-clearBtn.addEventListener(
-    "click",
-    clearStrategy
-);
-
 
 async function initializeApp(){
+
+    console.log(
+        "BEFORE INIT",
+        engineState
+    );
 
     await loadSavedStrategy();
 
@@ -567,7 +886,7 @@ async function initializeApp(){
         await restorePersistedState();
 
     // #region agent log
-    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'after loadSavedStrategy',data:{strategyKeys:Object.keys(strategyData).length,currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt,storedTotalAttempts:data?.totalAttempts,docReady:document.readyState},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'after loadSavedStrategy',data:{strategyKeys:Object.keys(strategyData).length,currentAttemptUI:currentAttemptUI?.textContent,engineStateCurrentAttempt:engineState.currentAttempt,engineCurrentAttempt:Engine.currentAttempt,storedTotalAttempts:data?.totalAttempts,attemptsInput:getTotalAttemptsNumber(),docReady:document.readyState},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
     // #endregion
 
     if(
@@ -576,30 +895,39 @@ async function initializeApp(){
 
         const savedAttempts =
             data?.totalAttempts ??
+            (getTotalAttemptsNumber() ||
             Object.keys(
                 strategyData
-            ).length;
+            ).length);
 
-        document.getElementById(
-            "attempts"
-        ).value =
-        savedAttempts;
+        if (savedAttempts !== getTotalAttemptsNumber()) {
+            document.getElementById(
+                "attempts"
+            ).value =
+            savedAttempts;
+        }
 
         // #region agent log
-        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'calling generateStrategy on reopen',data:{savedAttempts,currentAttemptUIBefore:currentAttemptUI?.textContent},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'calling generateStrategy on reopen',data:{savedAttempts,currentAttemptUIBefore:currentAttemptUI?.textContent,engineStateCurrentAttempt:engineState.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
         // #endregion
 
         await generateStrategy();
+        await saveState();
+}
 
         restoreValues();
 
         // #region agent log
-        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'after generateStrategy on reopen',data:{currentAttemptUIAfter:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:initializeApp',message:'after generateStrategy on reopen',data:{currentAttemptUIAfter:currentAttemptUI?.textContent,engineStateCurrentAttempt:engineState.currentAttempt,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
         // #endregion
 
     }
 
-}
+    console.log(
+        "AFTER INIT",
+        engineState
+    );
+
 
 
 
@@ -614,7 +942,11 @@ async function loadSavedStrategy() {
     );
 }
 
-async function generateStrategy(options = {}) {
+async function generateStrategy(
+    options = {}
+) {
+
+    console.log("GENERATE STARTED", options);
 
     strategyContainer.innerHTML = "";
 
@@ -622,12 +954,17 @@ async function generateStrategy(options = {}) {
         document.getElementById("attempts").value
     );
 
+    console.log("ATTEMPTS TO GENERATE:", attempts);
+
     const currentAttempt =
         options.isNewGeneration
             ? 1
-            : getCurrentAttemptNumber() || 1;
+            : engineState.currentAttempt ||
+              getCurrentAttemptNumber();
 
     for (let i = 1; i <= attempts; i++) {
+
+        console.log("CARD CREATED", i);
 
         const card =
             document.createElement("div");
@@ -745,10 +1082,12 @@ async function generateStrategy(options = {}) {
          strategyContainer.appendChild(
             card
         );
+
+        console.log("CARD APPENDED", i);
     }
 
     // #region agent log
-    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:generateStrategy',message:'about to updateAttemptProgress',data:{currentAttempt,attempts,isNewGeneration:!!options.isNewGeneration,currentAttemptUI:currentAttemptUI?.textContent,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5b98c1'},body:JSON.stringify({sessionId:'5b98c1',location:'popup.js:generateStrategy',message:'about to updateAttemptProgress',data:{currentAttempt,attempts,isNewGeneration:!!options.isNewGeneration,currentAttemptUI:currentAttemptUI?.textContent,engineStateCurrentAttempt:engineState.currentAttempt,engineCurrentAttempt:Engine.currentAttempt},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
     // #endregion
 
     await syncAttemptUI(
@@ -756,11 +1095,13 @@ async function generateStrategy(options = {}) {
         attempts
     );
 
-    if (options.isNewGeneration) {
+   if (options.isNewGeneration) {
         await addLog(
             `Generated ${attempts} attempts`
         );
     }
+
+    ensureStrategyContainerListeners();
 
     await saveState();
 }
@@ -856,183 +1197,7 @@ function restoreValues(){
     }
 
 }
-console.log(Engine);
-const winBtn =
-document.getElementById(
-    "winBtn"
-);
 
-console.log(
-    "ATTEMPT =",
-    Engine.currentAttempt
-);
-
-console.log(
-    "DATA =",
-    strategyData[
-        Engine.currentAttempt
-    ]
-);
-
-const lossBtn =
-document.getElementById(
-    "lossBtn"
-);
-
-if(winBtn){
-
-    winBtn.addEventListener(
-        "click",
-        async ()=>{
-
-            Engine.processResult(
-                "WIN"
-            );
-
-            lastResultUI.innerText =
-                "WIN";
-            
-            
-                const nextData =
-strategyData[
-    Engine.currentAttempt
-];
-
-if(
-    nextData &&
-    nextData.onWin
-){
-
-    nextChoiceUI.innerText =
-    nextData.onWin.choice;
-
-    nextAmountUI.innerText =
-    nextData.onWin.amount;
-
-    console.log(
-        "NEXT BET",
-        nextData.onWin
-    );
-
-}
-
-            await syncAttemptUI(
-                Engine.currentAttempt,
-                getTotalAttemptsNumber(),
-                true
-            );
-
-        }
-    );
-
-}
-
-if(lossBtn){
-
-    lossBtn.addEventListener(
-        "click",
-        async ()=>{
-
-            Engine.processResult(
-                "LOSS"
-            );
-
-            lastResultUI.innerText =
-                "LOSS";
-
-            const nextData =
-strategyData[
-    Engine.currentAttempt
-];
-
-
-if(
-    nextData &&
-    nextData.onLoss
-){
-
-    nextChoiceUI.innerText =
-    nextData.onLoss.choice;
-
-    nextAmountUI.innerText =
-    nextData.onLoss.amount;
-
-    console.log(
-        "NEXT BET",
-        nextData.onLoss
-    );
-
-}
-
-            await syncAttemptUI(
-                Engine.currentAttempt,
-                getTotalAttemptsNumber(),
-                true
-            );
-
-        }
-    );
-
-}
-
-
-const startBtn = document.getElementById("startBtn");
-const pauseBtn = document.getElementById("pauseBtn");
-const stopBtn = document.getElementById("stopBtn");
-
-if (startBtn) {
-    startBtn.addEventListener(
-    "click",
-    async () => {
-
-        engineStatusUI.textContent =
-            "🟢 Running";
-
-        await addLog(
-            "Automation Started"
-        );
-
-        await saveState();
-    }
-);
-
-}
-
-if (pauseBtn) {
-    pauseBtn.addEventListener(
-    "click",
-    async () => {
-
-        engineStatusUI.textContent =
-            "🟡 Paused";
-
-        await addLog(
-            "Automation Paused"
-        );
-
-        await saveState();
-    }
-);
-
-}
-
-if (stopBtn) {
-    stopBtn.addEventListener(
-    "click",
-    async () => {
-
-        engineStatusUI.textContent =
-            "🔴 Stopped";
-
-        await addLog(
-            "Automation Stopped"
-        );
-
-        await saveState();
-    }
-);
-
-}
 
 function clearStrategy(){
 
