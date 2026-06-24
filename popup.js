@@ -942,6 +942,110 @@ async function loadSavedStrategy() {
     );
 }
 
+async function startTimerAutomation() {
+
+    if(!Engine || !Engine.start) {
+        console.error("[Popup] Engine not loaded - automation.js missing?");
+        return false;
+    }
+
+    if(Object.keys(strategyData).length === 0) {
+        console.error("[Popup] No strategy created yet");
+        return false;
+    }
+
+    const totalAttempts = Object.keys(strategyData).length;
+
+    Engine.start();
+    Engine.timerAutomationEnabled = true;
+
+    // Send message to content script
+    try {
+
+        const tabs = await new Promise((resolve) => {
+            chrome.tabs.query(
+                { active: true, currentWindow: true },
+                resolve
+            );
+        });
+
+        if(!tabs || tabs.length === 0) {
+            console.error("[Popup] No active tab found");
+            return false;
+        }
+
+        const tab = tabs[0];
+
+        chrome.tabs.sendMessage(
+            tab.id,
+            {
+                action: "START_TIMER_AUTOMATION",
+                strategyData: strategyData,
+                totalAttempts: totalAttempts
+            },
+            (response) => {
+                if(chrome.runtime.lastError) {
+                    console.error("[Popup] Communication error:", chrome.runtime.lastError);
+                } else {
+                    console.log("[Popup] ✅ Timer automation started");
+                }
+            }
+        );
+
+        return true;
+
+    } catch(error) {
+
+        console.error("[Popup] Error starting automation:", error);
+        return false;
+
+    }
+
+}
+
+async function stopTimerAutomation() {
+
+    if(!Engine) {
+        console.error("[Popup] Engine not loaded");
+        return false;
+    }
+
+    Engine.stop();
+    Engine.timerAutomationEnabled = false;
+
+    try {
+
+        const tabs = await new Promise((resolve) => {
+            chrome.tabs.query(
+                { active: true, currentWindow: true },
+                resolve
+            );
+        });
+
+        if(tabs && tabs.length > 0) {
+
+            chrome.tabs.sendMessage(
+                tabs[0].id,
+                { action: "STOP_TIMER_AUTOMATION" },
+                () => {
+                    // Ignore errors - tab might have changed
+                }
+            );
+
+        }
+
+        console.log("[Popup] ✅ Timer automation stopped");
+        return true;
+
+    } catch(error) {
+
+        console.error("[Popup] Error stopping automation:", error);
+        return false;
+
+    }
+
+}
+
 async function generateStrategy(
     options = {}
 ) {

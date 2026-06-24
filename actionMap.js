@@ -33,7 +33,7 @@ export const actionMap = {
             console.error("Failed to place bet:", result.error);
         } else {
             console.log("Bet placed successfully:", result.response);
-        }
+       }
     },
 
     ACTION_SECONDARY: async (
@@ -89,6 +89,7 @@ async function sendToActiveTab(message) {
                 const isSupported = url && (
                     url.includes("damanworld.org") ||
                     url.includes("damanapp.download")
+                    
                 );
 
                 if (!isSupported) {
