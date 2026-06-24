@@ -28,6 +28,12 @@ if (engineState.currentAttempt < 1) {
     engineState.currentAttempt = 1;
 }
 
+if (!workflow) {
+    console.error("No workflow provided");
+    engineState.status = "error";
+    return;
+}
+
 const step =
     workflow?.[
         engineState.currentAttempt
@@ -79,12 +85,20 @@ console.log(
 
     if (!action) {
 
-        throw new Error(
+        console.error(
             `Unknown action: ${step.action}`
         );
+        engineState.status = "error";
+        return;
     }
 
-    await action(step);
+    try {
+        await action(step);
+    } catch (error) {
+        console.error("Error executing action:", error);
+        engineState.status = "error";
+        return;
+    }
 
     const previousAttempt = engineState.currentAttempt;
     engineState.currentAttempt =

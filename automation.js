@@ -88,6 +88,32 @@ const Engine = {
 
     },
 
+    updateOutcome(latestResult){
+        this.lastResult = latestResult;
+        console.log("[Engine] Outcome updated:", latestResult);
+    },
+
+    updateBetState(target, amount){
+        this.lastBetTarget = target;
+        this.lastBetAmount = amount;
+        console.log("[Engine] Bet state updated:", { target, amount });
+    },
+
+    calculateNextMove(strategyData, totalAttempts){
+        if(!strategyData){
+            console.error("[Engine] No strategy data");
+            return null;
+        }
+
+        if(this.currentAttempt > totalAttempts){
+            console.log("[Engine] Max attempts reached, resetting");
+            this.currentAttempt = 1;
+        }
+
+        const nextMove = this.getNextMove(strategyData);
+        return nextMove;
+    },
+
     determineOutcome(latestResult){
 
         const isWin = this.lastBetTarget === latestResult;
@@ -134,10 +160,10 @@ const Engine = {
         // Determine if we won or lost
         const outcome = this.determineOutcome(this.lastResult);
 
-        // Select ifWin or ifLoss branch
+        // Select onWin or onLoss branch
         const nextConfig = outcome === "WIN"
-            ? previousAttemptConfig.ifWin
-            : previousAttemptConfig.ifLoss;
+            ? previousAttemptConfig.onWin
+            : previousAttemptConfig.onLoss;
 
         if(!nextConfig){
             console.error("[Engine] No config found for", outcome);

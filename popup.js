@@ -10,6 +10,8 @@ import {
 
 } from "./workflowEngine.js";
 
+import { sendToActiveTab, isSupportedTabUrl, isRestrictedTabUrl, sendMessageToTab, isMissingContentScriptError } from "./messaging.js";
+
 let strategyData = {};
 
 let persistedStateRestored = false;
@@ -732,146 +734,6 @@ document.addEventListener(
         }
     }
 );
-
-function isRestrictedTabUrl(url) {
-    if (!url) {
-        return true;
-    }
-    return (
-        url.startsWith("chrome://") ||
-        url.startsWith("chrome-extension://") ||
-        url.startsWith("edge://") ||
-        url.startsWith("about:") ||
-        url.startsWith("devtools://")
-    );
-}
-
-function sendMessageToTab(tabId, message) {
-    return new Promise((resolve) => {
-        chrome.tabs.sendMessage(tabId, message, (response) => {
-            const lastError = chrome.runtime.lastError;
-            if (lastError) {
-                resolve({ ok: false, error: lastError.message });
-            } else {
-                resolve({ ok: true, response });
-            }
-        });
-    });
-}
-
-function isMissingContentScriptError(errorMessage) {
-    return (
-        errorMessage.includes("Receiving end does not exist") ||
-        errorMessage.includes("Could not establish connection")
-    );
-}
-
-function isSupportedTabUrl(url) {
-    if (!url) {
-        return false;
-    }
-    try {
-        const parsed = new URL(url);
-        return (
-            parsed.hostname === "damanworld.org" ||
-            parsed.hostname === "damanapp.download"
-        );
-    } catch {
-        return false;
-    }
-}
-
-function sendToActiveTab(message) {
-    return new Promise((resolve) => {
-
-    chrome.tabs.query(
-        { active: true, lastFocusedWindow: true },
-
-        async (tabs) => {
-
-            const tab = tabs[0];
-
-            console.log(
-                "TAB URL:",
-                tab.url
-            );
-
-            const urlSupported = isSupportedTabUrl(tab?.url);
-            const legacyStartsWith = tab.url?.startsWith(
-                "https://damanworld.org/#/saasLottery/WinGo?gameCode=WinGo_30S&lottery=WinGo/"
-            );
-
-            // #region agent log
-            fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ef7d33'},body:JSON.stringify({sessionId:'ef7d33',location:'popup.js:sendToActiveTab',message:'tab query result',data:{tabId:tab?.id,tabUrl:tab?.url,urlSupported,legacyStartsWith,messageAction:message?.action},timestamp:Date.now(),hypothesisId:'B',runId:'pre-fix'})}).catch(()=>{});
-            // #endregion
-
-            if (!urlSupported) {
-
-                resolve({
-                    error: "UNSUPPORTED_URL",
-                    url: tab.url
-                });
-
-                return;
-            }
-
-            if (!tab?.id) {
-
-                resolve({
-                    error: "NO_TAB"
-                });
-
-                return;
-            }
-
-                if (isRestrictedTabUrl(tab.url)) {
-                    resolve({ error: "RESTRICTED_URL", url: tab.url });
-                    return;
-                }
-
-                let result = await sendMessageToTab(tab.id, message);
-
-                // #region agent log
-                fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ef7d33'},body:JSON.stringify({sessionId:'ef7d33',location:'popup.js:sendMessage',message:'first sendMessage result',data:{tabId:tab.id,ok:result.ok,error:result.error||null,response:result.response||null},timestamp:Date.now(),hypothesisId:'C',runId:'pre-fix'})}).catch(()=>{});
-                // #endregion
-
-                if (!result.ok && isMissingContentScriptError(result.error)) {
-                    try {
-                        await chrome.scripting.executeScript({
-                            target: { tabId: tab.id },
-                            files: ["content.js"]
-                        });
-                        // #region agent log
-                        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ef7d33'},body:JSON.stringify({sessionId:'ef7d33',location:'popup.js:executeScript',message:'manual inject succeeded',data:{tabId:tab.id},timestamp:Date.now(),hypothesisId:'C',runId:'pre-fix'})}).catch(()=>{});
-                        // #endregion
-                        result = await sendMessageToTab(tab.id, message);
-                    } catch (injectError) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ef7d33'},body:JSON.stringify({sessionId:'ef7d33',location:'popup.js:executeScript',message:'manual inject failed',data:{tabId:tab.id,injectError:injectError.message,lastSendError:result.error},timestamp:Date.now(),hypothesisId:'C',runId:'pre-fix'})}).catch(()=>{});
-                        // #endregion
-                        resolve({
-                            error: result.error,
-                            url: tab.url,
-                            injectError: injectError.message
-                        });
-                        return;
-                    }
-                }
-
-                // #region agent log
-                fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ef7d33'},body:JSON.stringify({sessionId:'ef7d33',location:'popup.js:sendToActiveTab:final',message:'final result',data:{tabId:tab.id,ok:result.ok,error:result.error||null,response:result.response||null},timestamp:Date.now(),hypothesisId:'D',runId:'pre-fix'})}).catch(()=>{});
-                // #endregion
-
-                if (!result.ok) {
-                    resolve({ error: result.error, url: tab.url });
-                } else {
-                    resolve({ response: result.response, url: tab.url });
-                }
-            }
-        );
-    });
-}
-
 
 async function initializeApp(){
 

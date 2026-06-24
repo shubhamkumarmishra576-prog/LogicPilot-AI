@@ -369,37 +369,6 @@ console.log(
 
     }
 
-    function getLatestResult() {
-
-        try {
-
-            const resultElement = document.querySelector(
-                ".record-body .van-row:first-child .van-col.van-col--5 span"
-            );
-
-            if(!resultElement){
-                console.warn("[Result] Result element not found");
-                return null;
-            }
-
-            const result = resultElement.textContent.trim();
-
-            if(result === "Big" || result === "Small"){
-                console.log("[Result] Latest result:", result);
-                return result;
-            }
-
-            console.warn("[Result] Unexpected result value:", result);
-            return null;
-
-        } catch(error){
-
-            console.error("[Result] Error reading result:", error);
-            return null;
-
-        }
-
-    }
 
     async function clickAmountButton(amount) {
 
@@ -531,6 +500,23 @@ console.log(
                             status: "OK",
                             action: "CLICK_SMALL",
                             result: await clickSmallButton()
+                        };
+
+                    } else if (
+                        message.action === "PLACE_BET"
+                    ) {
+
+                        const choice = message.choice;
+                        const amount = message.amount;
+
+                        console.log("[PLACE_BET] Executing bet:", { choice, amount });
+
+                        const result = await executeBet(choice, amount);
+
+                        payload = {
+                            status: "OK",
+                            action: "PLACE_BET",
+                            result: result
                         };
 
                     } else if (
