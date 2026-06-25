@@ -13,13 +13,13 @@ const Engine = {
 
     timerAutomationActive: false,
 
+    lastProcessedPeriodId: null,
+
     start(){
 
         this.isRunning = true;
 
         this.isPaused = false;
-
-        this.currentAttempt = 1;
 
         console.log(
             "🚀 Engine Started"
@@ -32,8 +32,6 @@ const Engine = {
         this.isRunning = false;
 
         this.isPaused = false;
-
-        this.currentAttempt = 1;
 
         this.timerAutomationActive = false;
 
@@ -149,7 +147,7 @@ const Engine = {
             return attempt1;
         }
 
-        // For subsequent attempts - check previous attempt outcome
+        // For subsequent attempts - check previous attempt's onWin/onLoss to determine current move
         const previousAttemptConfig = strategyData[this.currentAttempt - 1];
 
         if(!previousAttemptConfig){
@@ -160,7 +158,7 @@ const Engine = {
         // Determine if we won or lost
         const outcome = this.determineOutcome(this.lastResult);
 
-        // Select onWin or onLoss branch
+        // Select onWin or onLoss branch from previous attempt
         const nextConfig = outcome === "WIN"
             ? previousAttemptConfig.onWin
             : previousAttemptConfig.onLoss;
@@ -169,9 +167,6 @@ const Engine = {
             console.error("[Engine] No config found for", outcome);
             return null;
         }
-
-        // Advance to next attempt
-        this.currentAttempt++;
 
         console.log("[Engine] Next move from", outcome, "branch:", nextConfig);
 

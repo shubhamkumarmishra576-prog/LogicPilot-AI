@@ -582,9 +582,7 @@ document.addEventListener(
                         const workflow =
                             buildWorkflow();
 
-                        await startEngine(
-                            workflow
-                        );
+                        await startTimerAutomation();
 
                         engineStatusUI.textContent =
                             "🟢 Running";
@@ -626,6 +624,8 @@ document.addEventListener(
             "click",
             async () => {
 
+                await stopTimerAutomation();
+
                 engineStatusUI.textContent =
                     "🟡 Paused";
 
@@ -643,6 +643,8 @@ document.addEventListener(
             stopBtn.addEventListener(
             "click",
             async () => {
+
+                await stopTimerAutomation();
 
                 engineStatusUI.textContent =
                     "🔴 Stopped";
@@ -838,6 +840,19 @@ async function startTimerAutomation() {
 
         const tab = tabs[0];
 
+        // Validate URL - must be betting website
+        const url = tab.url;
+        const isBettingSite = url && (url.includes("damanworld.org") || url.includes("damanapp.download"));
+        
+        if(!isBettingSite) {
+            console.error("[Popup] Active tab is not a betting site:", url);
+            alert("Please open the betting website (damanworld.org or damanapp.download) and try again.");
+            return false;
+        }
+
+        console.log("[Popup] Sending message to tab:", tab.id, "URL:", url);
+
+        // Try sending message, inject content script if needed
         chrome.tabs.sendMessage(
             tab.id,
             {
@@ -846,8 +861,43 @@ async function startTimerAutomation() {
                 totalAttempts: totalAttempts
             },
             (response) => {
-                if(chrome.runtime.lastError) {
-                    console.error("[Popup] Communication error:", chrome.runtime.lastError);
+                if (chrome.runtime.lastError) {
+                    console.error("[Popup] Error Message:", chrome.runtime.lastError.message);
+                    console.dir(chrome.runtime.lastError);
+                    
+                    // If content script not loaded, inject it
+                    if(chrome.runtime.lastError.message.includes("Receiving end does not exist") || 
+                       chrome.runtime.lastError.message.includes("Could not establish connection")) {
+                        console.log("[Popup] Content script not loaded, injecting...");
+                        chrome.scripting.executeScript({
+                            target: { tabId: tab.id },
+                            files: ["content.js"]
+                        }, () => {
+                            if(chrome.runtime.lastError) {
+                                console.error("[Popup] Failed to inject content script:", chrome.runtime.lastError);
+                            } else {
+                                console.log("[Popup] Content script injected, retrying message...");
+                                // Retry message after injection
+                                setTimeout(() => {
+                                    chrome.tabs.sendMessage(
+                                        tab.id,
+                                        {
+                                            action: "START_TIMER_AUTOMATION",
+                                            strategyData: strategyData,
+                                            totalAttempts: totalAttempts
+                                        },
+                                        (retryResponse) => {
+                                            if(chrome.runtime.lastError) {
+                                                console.error("[Popup] Retry failed:", chrome.runtime.lastError);
+                                            } else {
+                                                console.log("[Popup] ✅ Timer automation started (after injection)");
+                                            }
+                                        }
+                                    );
+                                }, 500);
+                            }
+                        });
+                    }
                 } else {
                     console.log("[Popup] ✅ Timer automation started");
                 }

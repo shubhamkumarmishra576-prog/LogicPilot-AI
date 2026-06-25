@@ -1,5 +1,15 @@
 console.log("LOGICPILOT CONTENT LOADED");
 
+// Local automation state - content script manages its own state
+const AutomationState = {
+    currentAttempt: 1,
+    lastResult: null,
+    lastBetTarget: null,
+    lastBetAmount: null,
+    lastProcessedPeriodId: null,
+    timerAutomationEnabled: false
+};
+
 // #region agent log
 fetch('http://127.0.0.1:7391/ingest/de6115f7-dc0a-4377-999c-10b7507a1859',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ef7d33'},body:JSON.stringify({sessionId:'ef7d33',location:'content.js:top',message:'content script injected',data:{href:location.href,host:location.hostname,hash:location.hash,bodyCount:document.querySelectorAll('*').length,bigBtnCount:document.querySelectorAll('.Betting__C-foot-b').length},timestamp:Date.now(),hypothesisId:'A',runId:'pre-fix'})}).catch(()=>{});
 // #endregion
@@ -238,13 +248,75 @@ console.log(
 
     }
 
+    function calculateNextMove(strategyData, totalAttempts) {
+        console.log("[Timer] calculateNextMove called - currentAttempt:", AutomationState.currentAttempt, "totalAttempts:", totalAttempts);
+        
+        if(!strategyData){
+            console.error("[Timer] No strategy data");
+            return null;
+        }
+
+        console.log("[Timer] Strategy data keys:", Object.keys(strategyData));
+
+        if(AutomationState.currentAttempt > totalAttempts){
+            console.log("[Timer] Max attempts reached, resetting from", AutomationState.currentAttempt, "to 1");
+            AutomationState.currentAttempt = 1;
+        }
+
+        // First attempt - use Attempt 1 config
+        if(AutomationState.currentAttempt === 1){
+            const attempt1 = strategyData[1];
+            if(!attempt1){
+                console.error("[Timer] Attempt 1 not found in strategy");
+                return null;
+            }
+            console.log("[Timer] ✓ Using Attempt 1 config:", attempt1);
+            return attempt1;
+        }
+
+        // For subsequent attempts - check previous attempt's onWin/onLoss to determine current move
+        const previousAttemptIndex = AutomationState.currentAttempt - 1;
+        const previousAttemptConfig = strategyData[previousAttemptIndex];
+
+        console.log("[Timer] Previous attempt index:", previousAttemptIndex, "config:", previousAttemptConfig);
+
+        if(!previousAttemptConfig){
+            console.error("[Timer] Previous attempt config not found at index", previousAttemptIndex);
+            return null;
+        }
+
+        // Determine if we won or lost
+        const isWin = AutomationState.lastBetTarget === AutomationState.lastResult;
+        const outcome = isWin ? "WIN" : "LOSS";
+
+        console.log("[Timer] Bet target:", AutomationState.lastBetTarget, "| Latest result:", AutomationState.lastResult, "| Outcome:", outcome);
+
+        // Select onWin or onLoss branch from previous attempt
+        const nextConfig = outcome === "WIN"
+            ? previousAttemptConfig.onWin
+            : previousAttemptConfig.onLoss;
+
+        console.log("[Timer] Selected branch:", outcome, "->", nextConfig);
+
+        if(!nextConfig){
+            console.error("[Timer] No config found for", outcome, "in previous attempt");
+            return null;
+        }
+
+        console.log("[Timer] ✓ Next move from", outcome, "branch:", nextConfig);
+
+        return nextConfig;
+    }
+
     function initializeTimerMonitoring(strategyData, totalAttempts) {
 
         console.log("[Timer] Initializing timer monitoring...");
 
         let timerTriggeredThisRound = false;
+        let lastProcessedPeriodId = AutomationState.lastProcessedPeriodId || null;
 
         const timerElement = document.querySelector('.TimeLeft__C');
+        const periodIdElement = document.querySelector('.TimeLeft__C-id');
 
         if(!timerElement) {
             console.error("[Timer] Timer element not found");
@@ -253,10 +325,28 @@ console.log(
 
         const observer = new MutationObserver(async () => {
 
-            const timerText = timerElement.textContent.trim();
+            // Read timer from child divs
+            const timerDivs = timerElement.querySelectorAll('div');
+            let timerValue = '';
+            timerDivs.forEach(div => {
+                timerValue += div.textContent.trim();
+            });
+            
+            // Check if timer is at 20 (last two digits)
+            const isAt20 = timerValue.endsWith('20');
 
-            // Check if timer is at 00:20
-            if(timerText === '00:20' && !timerTriggeredThisRound && Engine && Engine.timerAutomationEnabled) {
+            // Read current period ID
+            const currentPeriodId = periodIdElement ? periodIdElement.textContent.trim() : null;
+
+            // Check if period ID changed
+            const periodChanged = currentPeriodId && currentPeriodId !== lastProcessedPeriodId;
+
+            // Log monitoring state
+            if(isAt20 || periodChanged) {
+                console.log("[Timer] Monitoring - Timer:", timerValue, "| Period ID:", currentPeriodId, "| Last Period:", lastProcessedPeriodId, "| Period Changed:", periodChanged, "| Timer at 20:", isAt20, "| Triggered:", timerTriggeredThisRound, "| Enabled:", AutomationState.timerAutomationEnabled);
+            }
+
+            if(isAt20 && periodChanged && !timerTriggeredThisRound && AutomationState.timerAutomationEnabled) {
 
                 timerTriggeredThisRound = true;
 
@@ -264,34 +354,66 @@ console.log(
 
                 try {
 
-                    // Get latest result from previous round
-                    const latestResult = await getLatestResult();
+                    let nextMove;
 
-                    if(!latestResult) {
-                        console.warn("[Timer] Could not get latest result, skipping round");
-                        return;
-                    }
+                    // First round - use Attempt 1 config directly
+                    if(AutomationState.currentAttempt === 1) {
+                        console.log("[Timer] First round - using Attempt 1 config");
+                        nextMove = strategyData[1];
+                        if(!nextMove) {
+                            console.error("[Timer] Attempt 1 config not found");
+                            return;
+                        }
+                    } else {
+                        // Subsequent rounds - check previous result
+                        const latestResult = await getLatestResult();
 
-                    // Update Engine with outcome
-                    Engine.updateOutcome(latestResult);
+                        if(!latestResult) {
+                            console.warn("[Timer] Could not get latest result, skipping round");
+                            return;
+                        }
 
-                    // Calculate next move using Engine
-                    const nextMove = Engine.calculateNextMove(strategyData, totalAttempts);
+                        // Update state with outcome
+                        AutomationState.lastResult = latestResult;
 
-                    if(!nextMove) {
-                        console.error("[Timer] Failed to calculate next move");
-                        return;
+                        // Calculate next move using local logic
+                        nextMove = calculateNextMove(strategyData, totalAttempts);
+
+                        if(!nextMove) {
+                            console.error("[Timer] Failed to calculate next move");
+                            return;
+                        }
                     }
 
                     // Store bet details before execution
                     const betTarget = nextMove.choice === 'big' ? 'Big' : 'Small';
-                    Engine.updateBetState(betTarget, nextMove.amount);
+                    AutomationState.lastBetTarget = betTarget;
+                    AutomationState.lastBetAmount = nextMove.amount;
 
                     // Execute the bet
                     const result = await executeBet(nextMove.choice, nextMove.amount);
 
                     if(result.success) {
                         console.log("[Timer] ✅ Automation round complete");
+                        
+                        // Update processed period ID
+                        if(currentPeriodId) {
+                            AutomationState.lastProcessedPeriodId = currentPeriodId;
+                            lastProcessedPeriodId = currentPeriodId;
+                            console.log("[Timer] Period ID updated:", currentPeriodId);
+                        }
+                        
+                        // Wait for result to appear
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
+                        // Read and store result for next round
+                        const latestResult = await getLatestResult();
+                        if(latestResult) {
+                            AutomationState.lastResult = latestResult;
+                            console.log("[Timer] Result stored for next round:", latestResult);
+                        }
+                        
+                        AutomationState.currentAttempt++;
                     } else {
                         console.error("[Timer] Bet execution failed:", result.error);
                     }
@@ -304,10 +426,10 @@ console.log(
 
             }
 
-            // Reset flag when timer changes from 00:20
-            if(timerText !== '00:20' && timerTriggeredThisRound) {
+            // Reset flag when timer changes from 20
+            if(!isAt20 && timerTriggeredThisRound) {
                 timerTriggeredThisRound = false;
-                console.log("[Timer] New round detected");
+                console.log("[Timer] Timer changed from 20");
             }
 
         });
@@ -315,10 +437,11 @@ console.log(
         observer.observe(timerElement, {
             characterData: true,
             subtree: true,
-            childList: false
+            childList: true
         });
 
-        console.log("[Timer] Timer monitoring started");
+        console.log("[Timer] ✓ Timer monitoring started - Observer configured with characterData, subtree, childList");
+        console.log("[Timer] Monitoring timer element:", timerElement, "| Period element:", periodIdElement);
 
         return observer;
 
@@ -327,7 +450,7 @@ console.log(
     function monitorTimer(callback) {
 
         const timerElement = document.querySelector(
-            ".TimeLeft__C-time"
+            ".TimeLeft__C"
         );
 
         if(!timerElement){
@@ -523,75 +646,24 @@ console.log(
                         message.action === "START_TIMER_AUTOMATION"
                     ) {
 
+                        // Disconnect existing observer if present (prevent memory leak)
+                        if(globalThis.__timerObserver){
+                            console.log("[Automation] Disconnecting existing observer before creating new one");
+                            globalThis.__timerObserver.disconnect();
+                            globalThis.__timerObserver = null;
+                        }
+
                         if(!globalThis.__timerAutomationActive){
 
                             globalThis.__timerAutomationActive = true;
+                            AutomationState.timerAutomationEnabled = true;
 
                             const strategyData = message.strategyData;
                             const totalAttempts = message.totalAttempts;
 
                             console.log("[Automation] Starting with strategy:", strategyData);
 
-                            globalThis.__timerObserver = monitorTimer(async () => {
-
-                                console.log("[Automation] Timer callback triggered");
-
-                                try {
-
-                                    // Get current move from strategy
-                                    const nextMove = Engine.getNextMove(strategyData);
-
-                                    if(!nextMove){
-                                        console.error("[Automation] Failed to get next move");
-                                        return;
-                                    }
-
-                                    // Execute the bet
-                                    const betResult = await executeBetSequence(
-                                        nextMove.choice,
-                                        nextMove.amount
-                                    );
-
-                                    if(betResult.success){
-
-                                        // Store the bet details
-                                        Engine.recordBet(
-                                            nextMove.choice,
-                                            nextMove.amount
-                                        );
-
-                                        console.log("[Automation] Bet recorded. Waiting for result...");
-
-                                        // Wait a moment for result to appear
-                                        await new Promise(resolve => setTimeout(resolve, 1000));
-
-                                        // Read the result
-                                        const result = getLatestResult();
-
-                                        if(result){
-                                            Engine.lastResult = result;
-                                            console.log("[Automation] Result stored:", result);
-                                        }
-
-                                        // Check if we've reached max attempts
-                                        if(Engine.currentAttempt > totalAttempts){
-                                            console.log("[Automation] Max attempts reached, resetting");
-                                            Engine.currentAttempt = 1;
-                                        }
-
-                                    } else {
-
-                                        console.error("[Automation] Bet failed:", betResult.error);
-
-                                    }
-
-                                } catch(error){
-
-                                    console.error("[Automation] Error in timer callback:", error.message);
-
-                                }
-
-                            });
+                            globalThis.__timerObserver = initializeTimerMonitoring(strategyData, totalAttempts);
 
                             payload = {
                                 status: "OK",
@@ -618,7 +690,7 @@ console.log(
                         }
 
                         globalThis.__timerAutomationActive = false;
-                        Engine.timerAutomationActive = false;
+                        AutomationState.timerAutomationEnabled = false;
 
                         console.log("[Automation] Timer automation stopped");
 

@@ -144,5 +144,4 @@ export function stopEngine() {
     engineState.status =
         "stopped";
 
-    engineState.currentAttempt = 1;
 }
