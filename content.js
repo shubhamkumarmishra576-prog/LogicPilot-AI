@@ -274,14 +274,13 @@ console.log(
             return attempt1;
         }
 
-        // For subsequent attempts - check previous attempt's onWin/onLoss to determine current move
-        const previousAttemptIndex = AutomationState.currentAttempt - 1;
-        const previousAttemptConfig = strategyData[previousAttemptIndex];
+        // For subsequent attempts - read current attempt's onWin/onLoss based on previous outcome
+        const currentAttemptConfig = strategyData[AutomationState.currentAttempt];
 
-        console.log("[Timer] Previous attempt index:", previousAttemptIndex, "config:", previousAttemptConfig);
+        console.log("[Timer] Current attempt index:", AutomationState.currentAttempt, "config:", currentAttemptConfig);
 
-        if(!previousAttemptConfig){
-            console.error("[Timer] Previous attempt config not found at index", previousAttemptIndex);
+        if(!currentAttemptConfig){
+            console.error("[Timer] Current attempt config not found at index", AutomationState.currentAttempt);
             return null;
         }
 
@@ -291,15 +290,15 @@ console.log(
 
         console.log("[Timer] Bet target:", AutomationState.lastBetTarget, "| Latest result:", AutomationState.lastResult, "| Outcome:", outcome);
 
-        // Select onWin or onLoss branch from previous attempt
+        // Select onWin or onLoss branch from current attempt
         const nextConfig = outcome === "WIN"
-            ? previousAttemptConfig.onWin
-            : previousAttemptConfig.onLoss;
+            ? currentAttemptConfig.onWin
+            : currentAttemptConfig.onLoss;
 
         console.log("[Timer] Selected branch:", outcome, "->", nextConfig);
 
         if(!nextConfig){
-            console.error("[Timer] No config found for", outcome, "in previous attempt");
+            console.error("[Timer] No config found for", outcome, "in current attempt");
             return null;
         }
 
