@@ -263,18 +263,32 @@ console.log(
             AutomationState.currentAttempt = 1;
         }
 
-        // First attempt - use Attempt 1 config
+        // Determine if we won or lost
+        const isWin = AutomationState.lastBetTarget === AutomationState.lastResult;
+        const outcome = isWin ? "WIN" : "LOSS";
+
+        console.log("[Timer] Bet target:", AutomationState.lastBetTarget, "| Latest result:", AutomationState.lastResult, "| Outcome:", outcome);
+
+        // BASE STRATEGY (Attempt 1)
         if(AutomationState.currentAttempt === 1){
             const attempt1 = strategyData[1];
             if(!attempt1){
                 console.error("[Timer] Attempt 1 not found in strategy");
                 return null;
             }
+            
+            if(isWin){
+                console.log("[Recovery] Still Winning - Continuing Base Strategy - Attempt = 1");
+            } else {
+                console.log("[Recovery] First LOSS - Entering Recovery Mode - Moving to Attempt 2");
+                AutomationState.currentAttempt = 2;
+            }
+            
             console.log("[Timer] ✓ Using Attempt 1 config:", attempt1);
             return attempt1;
         }
 
-        // For subsequent attempts - read current attempt's onWin/onLoss based on previous outcome
+        // RECOVERY MODE (Attempts 2+)
         const currentAttemptConfig = strategyData[AutomationState.currentAttempt];
 
         console.log("[Timer] Current attempt index:", AutomationState.currentAttempt, "config:", currentAttemptConfig);
@@ -284,27 +298,50 @@ console.log(
             return null;
         }
 
-        // Determine if we won or lost
-        const isWin = AutomationState.lastBetTarget === AutomationState.lastResult;
-        const outcome = isWin ? "WIN" : "LOSS";
-
-        console.log("[Timer] Bet target:", AutomationState.lastBetTarget, "| Latest result:", AutomationState.lastResult, "| Outcome:", outcome);
-
-        // Select onWin or onLoss branch from current attempt
-        const nextConfig = outcome === "WIN"
-            ? currentAttemptConfig.onWin
-            : currentAttemptConfig.onLoss;
-
-        console.log("[Timer] Selected branch:", outcome, "->", nextConfig);
-
-        if(!nextConfig){
-            console.error("[Timer] No config found for", outcome, "in current attempt");
-            return null;
+        if(isWin){
+            // Recovery WIN - Exit recovery mode, return to base strategy
+            console.log("[Recovery] Recovery WIN - Resetting to Attempt 1");
+            AutomationState.currentAttempt = 1;
+            const attempt1 = strategyData[1];
+            if(!attempt1){
+                console.error("[Timer] Attempt 1 not found in strategy");
+                return null;
+            }
+            console.log("[Timer] ✓ Returning to Base Strategy - Attempt 1 config:", attempt1);
+            return attempt1;
+        } else {
+            // Recovery LOSS - Advance to next recovery attempt
+            console.log("[Recovery] Recovery LOSS - Moving to Attempt", AutomationState.currentAttempt + 1);
+            AutomationState.currentAttempt++;
+            
+            // Check if we've exceeded max attempts
+            if(AutomationState.currentAttempt > totalAttempts){
+                console.log("[Timer] Max attempts reached, resetting to Attempt 1");
+                AutomationState.currentAttempt = 1;
+                const attempt1 = strategyData[1];
+                if(!attempt1){
+                    console.error("[Timer] Attempt 1 not found in strategy");
+                    return null;
+                }
+                console.log("[Timer] ✓ Using Attempt 1 config after max attempts:", attempt1);
+                return attempt1;
+            }
+            
+            const nextAttemptConfig = strategyData[AutomationState.currentAttempt];
+            if(!nextAttemptConfig){
+                console.error("[Timer] Next attempt config not found at index", AutomationState.currentAttempt);
+                return null;
+            }
+            
+            const nextConfig = nextAttemptConfig.onLoss;
+            if(!nextConfig){
+                console.error("[Timer] No onLoss config found in attempt", AutomationState.currentAttempt);
+                return null;
+            }
+            
+            console.log("[Timer] ✓ Next move from LOSS branch - Attempt", AutomationState.currentAttempt, "config:", nextConfig);
+            return nextConfig;
         }
-
-        console.log("[Timer] ✓ Next move from", outcome, "branch:", nextConfig);
-
-        return nextConfig;
     }
 
     function initializeTimerMonitoring(strategyData, totalAttempts) {
@@ -412,7 +449,16 @@ console.log(
                             console.log("[Timer] Result stored for next round:", latestResult);
                         }
                         
-                        AutomationState.currentAttempt++;
+                        // currentAttempt is now managed by calculateNextMove based on WIN/LOSS
+                        // No automatic increment here
+
+                        // Send currentAttempt update to popup for UI synchronization
+                        chrome.runtime.sendMessage({
+                            action: "UPDATE_CURRENT_ATTEMPT",
+                            currentAttempt: AutomationState.currentAttempt
+                        }).catch(err => {
+                            console.log("[Timer] Failed to send currentAttempt update to popup:", err);
+                        });
                     } else {
                         console.error("[Timer] Bet execution failed:", result.error);
                     }

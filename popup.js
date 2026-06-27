@@ -546,6 +546,23 @@ document.addEventListener(
         await restorePersistedState();
         await initializeApp();
 
+        // Listen for currentAttempt updates from content script
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if(message.action === "UPDATE_CURRENT_ATTEMPT" && message.currentAttempt !== undefined){
+                console.log("[Popup] Received currentAttempt update:", message.currentAttempt);
+                currentAttemptUI.textContent = String(message.currentAttempt);
+                engineState.currentAttempt = message.currentAttempt;
+                Engine.currentAttempt = message.currentAttempt;
+                
+                const totalAttempts = getTotalAttemptsNumber();
+                if(totalAttempts > 0){
+                    updateAttemptProgress(message.currentAttempt, totalAttempts);
+                }
+                
+                saveState();
+            }
+        });
+
         const startBtn = document.getElementById("startBtn");
         const pauseBtn = document.getElementById("pauseBtn");
         const stopBtn = document.getElementById("stopBtn");
