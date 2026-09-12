@@ -58,15 +58,19 @@ const Engine = {
             result
         );
 
-        const nextAttempt =
-        this.currentAttempt + 1;
-
-        this.currentAttempt =
-        nextAttempt;
+        // STRICT SEQUENTIAL PROGRESSION - WIN and LOSS both move forward
+        const nextAttempt = this.currentAttempt + 1;
+        this.currentAttempt = nextAttempt;
+        
+        if (result === "WIN") {
+            console.log("WIN detected - Moving to next attempt:", nextAttempt);
+        } else {
+            console.log("LOSS detected - Moving to next attempt:", nextAttempt);
+        }
 
         console.log(
-            "NEXT ATTEMPT = ",
-            nextAttempt
+            "CURRENT ATTEMPT = ",
+            this.currentAttempt
         );
 
     },
@@ -147,30 +151,17 @@ const Engine = {
             return attempt1;
         }
 
-        // For subsequent attempts - check previous attempt's onWin/onLoss to determine current move
-        const previousAttemptConfig = strategyData[this.currentAttempt - 1];
+        // For subsequent attempts - use direct config
+        const currentAttemptConfig = strategyData[this.currentAttempt];
 
-        if(!previousAttemptConfig){
-            console.error("[Engine] Previous attempt config not found");
+        if(!currentAttemptConfig){
+            console.error("[Engine] Current attempt config not found");
             return null;
         }
 
-        // Determine if we won or lost
-        const outcome = this.determineOutcome(this.lastResult);
+        console.log("[Engine] Using Attempt", this.currentAttempt, "config:", currentAttemptConfig);
 
-        // Select onWin or onLoss branch from previous attempt
-        const nextConfig = outcome === "WIN"
-            ? previousAttemptConfig.onWin
-            : previousAttemptConfig.onLoss;
-
-        if(!nextConfig){
-            console.error("[Engine] No config found for", outcome);
-            return null;
-        }
-
-        console.log("[Engine] Next move from", outcome, "branch:", nextConfig);
-
-        return nextConfig;
+        return currentAttemptConfig;
 
     }
 

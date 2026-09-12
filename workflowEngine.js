@@ -117,13 +117,8 @@ export async function startEngine(
     workflow
 ) {
 
-    if (
-        engineState.currentAttempt >
-        Object.keys(workflow).length
-    ) {
-
-        engineState.currentAttempt = 1;
-    }
+    // CRITICAL FIX: START MUST ALWAYS BEGIN FROM ATTEMPT 1
+    engineState.currentAttempt = 1;
 
     engineState.status =
         "running";

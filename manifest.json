@@ -4,28 +4,51 @@
   "version": "1.0.0",
   "description": "Think. Decide. Execute.",
 
+  "icons": {
+    "128": "icon.svg"
+  },
+
   "permissions": [
     "storage",
     "activeTab",
     "tabs",
-    "scripting"
+    "scripting",
+    "alarms",
+    "notifications"
   ],
 
   "host_permissions": [
     "https://damanworld.org/*",
-    "https://damanapp.download/*"
+    "https://damanapp.download/*",
+    "https://bdggame.typingmaster.in/*",
+    "https://paapaa.org/*",
+    "https://bdg6848.com/*",
+    "https://*.bdg6848.com/*",
+    "http://127.0.0.1:8000/*",
+    "https://api.blackfoxlicense.in/*",
+    "https://*.ngrok-free.app/*",
+    "https://*.ngrok.io/*",
+    "https://blackfoxlicense.in/*",
+    "https://www.blackfoxlicense.in/*",
+    "https://api.blackfoxlicense.in/*"
   ],
 
   "content_scripts": [
     {
       "matches": [
         "https://damanworld.org/*",
-        "https://damanapp.download/*"
+        "https://damanapp.download/*",
+        "https://bdggame.typingmaster.in/*",
+        "https://paapaa.org/*",
+        "https://bdg6848.com/*",
+        "https://*.bdg6848.com/*"
       ],
       "js": [
+        "logicShuffle.js",
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
 
@@ -34,6 +57,7 @@
   },
 
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   }
 }

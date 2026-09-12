@@ -19,7 +19,9 @@ export function isSupportedTabUrl(url) {
         const parsed = new URL(url);
         return (
             parsed.hostname === "damanworld.org" ||
-            parsed.hostname === "damanapp.download"
+            parsed.hostname === "damanapp.download" ||
+            parsed.hostname === "bdggame.typingmaster.in" ||
+            parsed.hostname === "bdg6848.com"
         );
     } catch {
         return false;

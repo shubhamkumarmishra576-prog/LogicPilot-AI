@@ -12,32 +12,330 @@
     <h1>LogicPilot AI</h1>
     <p class="subtitle">Think. Decide. Execute.</p>
 
+    <div id="authPanel" class="auth-panel">
+
+        <div class="auth-tabs">
+            <button
+                id="showLoginBtn"
+                class="auth-tab active"
+                type="button">
+                Login
+            </button>
+
+            <button
+                id="showRegisterBtn"
+                class="auth-tab"
+                type="button">
+                Register
+            </button>
+        </div>
+
+        <form id="loginForm" class="auth-screen">
+            <label>Email</label>
+            <input
+                id="loginEmail"
+                type="email"
+                autocomplete="email"
+                required
+            >
+
+            <label>Password</label>
+            <input
+                id="loginPassword"
+                type="password"
+                autocomplete="current-password"
+                required
+            >
+
+            <button id="loginBtn" type="submit">
+                Login
+            </button>
+        </form>
+
+        <form id="registerForm" class="auth-screen" hidden>
+            <label>Name</label>
+            <input
+                id="registerName"
+                type="text"
+                autocomplete="name"
+                required
+            >
+
+            <label>Email</label>
+            <input
+                id="registerEmail"
+                type="email"
+                autocomplete="email"
+                required
+            >
+
+            <label>Password</label>
+            <input
+                id="registerPassword"
+                type="password"
+                autocomplete="new-password"
+                required
+            >
+
+            <label>Confirm Password</label>
+            <input
+                id="registerPasswordConfirmation"
+                type="password"
+                autocomplete="new-password"
+                required
+            >
+
+            <button id="registerBtn" type="submit">
+                Register
+            </button>
+        </form>
+
+        <p id="authMessage" class="auth-message"></p>
+
+    </div>
+
+    <div id="sessionPanel" class="session-panel" hidden>
+
+        <div class="session-header">
+            <h3>Account</h3>
+            <button id="logoutBtn" type="button">
+                Logout
+            </button>
+        </div>
+
+        <p>
+            User Name :
+            <span id="authUserName">-</span>
+        </p>
+
+        <p>
+            Subscription Status :
+            <span id="authSubscriptionStatus">-</span>
+        </p>
+
+        <p>
+            Remaining Days :
+            <span id="authRemainingDays">-</span>
+        </p>
+
+        <p>
+            License Status :
+            <span id="authLicenseStatus">-</span>
+        </p>
+
+        <p>
+            Hardware ID :
+            <span id="authHardwareId">-</span>
+        </p>
+
+    </div>
+
+    <div id="automationApp" class="automation-app" hidden>
+
+    <!-- Mode Selection Card (shown only on first-time setup) -->
+    <div id="modeSelectionCard" class="card" style="display: none;">
+        <h3>🔧 Device Setup</h3>
+        <p class="subtitle">Select your device mode</p>
+        
+        <div class="mode-selection">
+            <button id="selectAuthorityMode" class="mode-btn">
+                <div class="mode-icon">👑</div>
+                <div class="mode-title">Authority Mode</div>
+                <div class="mode-description">Control session and coordinate workers</div>
+            </button>
+            
+            <button id="selectWorkerMode" class="mode-btn">
+                <div class="mode-icon">💻</div>
+                <div class="mode-title">Worker Mode</div>
+                <div class="mode-description">Follow authority session</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Authority Mode UI -->
+    <div id="authorityModeCard" class="card" style="display: none;">
+        <div class="authority-header">
+            <span class="authority-badge">👑 AUTHORITY MODE</span>
+            <button id="changeModeBtn" class="change-mode-btn">Change Mode</button>
+        </div>
+        
+        <div class="session-info">
+            <p><strong>Session:</strong> <span id="authoritySessionId">-</span></p>
+            <p><strong>Connected:</strong> <span id="connectedCount">0</span> / <span id="totalConnected">0</span></p>
+            <p><strong>Ready:</strong> <span id="readyCount">0</span> / <span id="totalReady">0</span></p>
+        </div>
+        
+        <div class="session-controls">
+            <button id="startAllBtn" class="btn-primary">START ALL</button>
+            <button id="stopAllBtn" class="btn-danger">STOP ALL</button>
+            <button id="resetSessionBtn" class="btn-warning">RESET SESSION</button>
+        </div>
+    </div>
+
+    <!-- Worker Mode UI -->
+    <div id="workerModeCard" class="card" style="display: none;">
+        <div class="worker-header">
+            <span class="worker-badge">💻 WORKER MODE</span>
+            <button id="changeModeBtnWorker" class="change-mode-btn">Change Mode</button>
+        </div>
+        
+        <div class="device-info">
+            <p><strong>Device Code:</strong> <span id="workerDeviceCode">-</span> <button id="copyDeviceCodeBtn" class="copy-btn">COPY</button></p>
+            <p class="helper-text">Share this code with authority to connect</p>
+            <p><strong>Authority:</strong> <span id="workerAuthorityId">-</span></p>
+            <p><strong>Connection:</strong> <span id="workerConnectionStatus">🔴 DISCONNECTED</span></p>
+        </div>
+        
+        <div class="worker-connect-section" id="workerConnectSection">
+            <label>Connect to Authority</label>
+            <input type="text" id="authorityCodeInput" placeholder="Enter Authority Session Code" maxlength="9">
+            <button id="connectToAuthorityBtn">CONNECT</button>
+        </div>
+    </div>
+
+    <!-- Connected Devices List (Authority only) -->
+    <div id="connectedDevicesCard" class="card" style="display: none;">
+        <h3>CONNECTED DEVICES</h3>
+        <div id="connectedDevicesList"></div>
+    </div>
+
+    <!-- Session Progress (both modes) -->
+    <div id="sessionProgressCard" class="card" style="display: none;">
+        <h3>SESSION PROGRESS</h3>
+        <p><strong>Attempt:</strong> <span id="sessionCurrentAttempt">0</span> / <span id="sessionTotalAttempts">0</span></p>
+        <p><strong>Session Total:</strong> ₹<span id="sessionTotalAmount">0</span></p>
+        <p><strong>Status:</strong> <span id="sessionStatus">🔴 STOPPED</span></p>
+    </div>
+
     <div class="card">
 
-        <label>Starting Choice</label>
+        <h3>Generate Attempts</h3>
 
-        <select id="choice">
-            <option value="big">Big</option>
-            <option value="small">Small</option>
-        </select>
+        <label>Number of Logics</label>
+        <input
+            type="number"
+            id="numberOfLogic"
+            min="1"
+            max="100"
+            value="1"
+        >
 
-        <label>Attempts</label>
+        <label>Attempts per Logic</label>
+        <input
+            type="number"
+            id="attemptsPerLogic"
+            min="1"
+            max="100"
+            value="10"
+        >
+        <input
+            type="hidden"
+            id="numberOfAttempts"
+            value="10"
+        >
+
+        <div class="auto-flip-condition-header shuffle-enable-row">
+            <label>Enable Logic Shuffle</label>
+            <label class="toggle-switch">
+                <input
+                    type="checkbox"
+                    id="logicShuffleEnabled"
+                >
+                <span class="toggle-slider"></span>
+                <span class="toggle-label">OFF</span>
+            </label>
+        </div>
+
+        <div id="logicShuffleRangeFields">
+            <label>Shuffle From Logic</label>
+            <input
+                type="number"
+                id="shuffleFromLogic"
+                min="1"
+                max="100"
+                value="1"
+            >
+
+            <label>Shuffle To Logic</label>
+            <input
+                type="number"
+                id="shuffleToLogic"
+                min="1"
+                max="100"
+                value="1"
+            >
+
+            <p class="helper-text">Only the selected logic range will be shuffled.</p>
+        </div>
+
+        <p id="shuffleValidationMessage" class="shuffle-validation-message"></p>
+
+        <button id="generateAttemptsBtn">
+            Generate Attempts
+        </button>
+
+        <button id="clearAttemptsBtn">
+            🗑 Clear All Attempts
+         </button>
+
+        <div id="executionPlanStatus" class="execution-plan-status">
+            <p><strong>Generated Logics:</strong> <span id="statusGeneratedLogics">0</span></p>
+            <p><strong>Attempts per Logic:</strong> <span id="statusAttemptsPerLogic">0</span></p>
+            <p><strong>Shuffle:</strong> <span id="statusShuffleEnabled">OFF</span></p>
+            <p><strong>Shuffle Range:</strong> <span id="statusShuffleRange">-</span></p>
+            <p><strong>Execution Order:</strong></p>
+            <p id="statusExecutionOrder">-</p>
+        </div>
+
+    </div>
+
+    <div class="card">
+
+        <h3>Start From Attempt</h3>
+
+        <label>Start From Attempt</label>
 
         <input
             type="number"
-            id="attempts"
+            id="startFromAttempt"
             min="1"
             max="100"
-            value="5"
+            value="1"
+            placeholder="1"
         >
 
-        <button id="generateBtn">
-            Generate Strategy
+        <p style="font-size: 11px; color: #666; margin-top: 5px;">
+            Select which attempt to start from. Leave as 1 for default behavior.
+        </p>
+
+    </div>
+
+    <div class="card">
+
+        <h3>Quick Shift</h3>
+
+        <label>Shift to Attempt</label>
+
+        <input
+            type="number"
+            id="quickShiftAttempt"
+            min="1"
+            max="100"
+            value="1"
+            placeholder="1"
+        >
+
+        <button id="quickShiftBtn">
+            ⚡ Quick Shift
         </button>
 
-        <button id="clearBtn">
-            🗑 Clear Strategy
-         </button>
+        <button id="resetAttemptZeroBtn">
+            ↩ Reset to Attempt 0
+        </button>
+
+        <p style="font-size: 11px; color: #666; margin-top: 5px;">
+            Immediately change active attempt while automation is running.
+        </p>
 
     </div>
 
@@ -57,7 +355,154 @@
 
     </div>
 
+    <div id="activeLogicSummary" class="active-logic-summary">
+        Active Logic : <span id="activeLogicSummaryValue">Logic 1</span>
+    </div>
+
     <div id="strategyContainer"></div>
+
+    <div class="card">
+
+        <h3>Manual Flip</h3>
+
+        <label>Flip to Logic</label>
+
+        <select id="manualFlipLogic">
+            <option value="1">Logic 1</option>
+            <option value="2">Logic 2</option>
+            <option value="3">Logic 3</option>
+            <option value="4">Logic 4</option>
+            <option value="5">Logic 5</option>
+        </select>
+
+        <button id="manualFlipBtn">
+            Manual Flip
+        </button>
+
+    </div>
+
+    <div class="card">
+
+        <h3>Auto Flip</h3>
+
+        <div class="auto-flip-condition">
+            <div class="auto-flip-condition-header">
+                <h4>Condition 1: Time-Based Flip</h4>
+                <label class="toggle-switch">
+                    <input
+                        type="checkbox"
+                        id="autoFlip1Enabled"
+                    >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">OFF</span>
+                </label>
+            </div>
+
+            <label>Flip to Logic</label>
+
+            <select id="autoFlip1Logic">
+                <option value="1">Logic 1</option>
+                <option value="2">Logic 2</option>
+                <option value="3">Logic 3</option>
+                <option value="4">Logic 4</option>
+                <option value="5">Logic 5</option>
+            </select>
+
+            <label>When Current Logic Running Time >=</label>
+
+            <input
+                type="number"
+                id="autoFlip1Minutes"
+                min="1"
+                max="120"
+                value="10"
+            >
+
+            <label>Minutes</label>
+        </div>
+
+        <div class="auto-flip-condition">
+            <div class="auto-flip-condition-header">
+                <h4>Condition 2: Attempt-Based Flip</h4>
+                <label class="toggle-switch">
+                    <input
+                        type="checkbox"
+                        id="autoFlip2Enabled"
+                    >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">OFF</span>
+                </label>
+            </div>
+
+            <label>Flip to Logic</label>
+
+            <select id="autoFlip2Logic">
+                <option value="1">Logic 1</option>
+                <option value="2">Logic 2</option>
+                <option value="3">Logic 3</option>
+                <option value="4">Logic 4</option>
+                <option value="5">Logic 5</option>
+            </select>
+
+            <label>When Current Logic reaches Attempt</label>
+
+            <input
+                type="number"
+                id="autoFlip2Attempt"
+                min="1"
+                max="100"
+                value="5"
+            >
+        </div>
+
+        <div class="auto-flip-condition">
+            <div class="auto-flip-condition-header">
+                <h4>Condition 3: Shuffle Mode</h4>
+                <label class="toggle-switch">
+                    <input
+                        type="checkbox"
+                        id="shuffleFlipEnabled"
+                    >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">OFF</span>
+                </label>
+            </div>
+
+            <label>Trigger Type</label>
+
+            <select id="shuffleTriggerType">
+                <option value="win">Every Win</option>
+                <option value="loss">Every Loss</option>
+            </select>
+
+            <label>Flip To</label>
+
+            <input
+                type="text"
+                value="Random Logic"
+                readonly
+            >
+        </div>
+
+        <div class="auto-flip-condition">
+            <h4>Flip Recovery Mode</h4>
+
+            <label>When Logic Flips, Start From:</label>
+
+            <select id="flipRecoveryMode">
+                <option value="reset">Reset Attempt (Default)</option>
+                <option value="carry_attempt">Carry Attempt</option>
+                <option value="carry_attempt_amount">Carry Attempt + Amount</option>
+            </select>
+
+            <p style="font-size: 11px; color: #666; margin-top: 5px;">
+                <strong>Reset Attempt:</strong> Always start from Attempt 1<br>
+                <strong>Carry Attempt:</strong> Keep same attempt, use new Logic's Choice & Amount<br>
+                <strong>Carry Attempt + Amount:</strong> Keep same attempt & amount, use new Logic's Choice
+            </p>
+        </div>
+
+    </div>
 
     <div class="control-panel">
 
@@ -69,6 +514,13 @@
         Status :
         <span id="engineStatus">
             🔴 Stopped
+        </span>
+    </p>
+
+    <p>
+        Active Logic :
+        <span id="activeLogic">
+            Logic 1
         </span>
     </p>
 
@@ -106,7 +558,80 @@
 
     <div id="attemptProgress"></div>
 
-    <!-- ADD THIS BLOCK -->
+    <h3>
+        📊 Outcome Analyzer
+    </h3>
+
+    <div id="analyzerPanel" class="analyzer-panel">
+        <p>
+            Samples:
+            <span id="analyzerSamples" class="analyzer-value">
+                0
+            </span>
+        </p>
+
+        <p>
+            Model Status:
+            <span id="analyzerStatus" class="analyzer-value">
+                LOW DATA
+            </span>
+        </p>
+
+        <div class="analyzer-probabilities">
+            <p>
+                BIG:
+                <span id="analyzerBigPercent" class="analyzer-value">
+                    50%
+                </span>
+            </p>
+
+            <p>
+                SMALL:
+                <span id="analyzerSmallPercent" class="analyzer-value">
+                    50%
+                </span>
+            </p>
+        </div>
+
+        <p>
+            Prediction:
+            <span id="analyzerPrediction" class="analyzer-value prediction-highlight">
+                -
+            </span>
+        </p>
+
+        <p>
+            Confidence:
+            <span id="analyzerConfidence" class="analyzer-value">
+                LOW
+            </span>
+        </p>
+
+        <p>
+            Model Accuracy:
+            <span id="analyzerAccuracy" class="analyzer-value">
+                0.0%
+            </span>
+        </p>
+
+        <p>
+            Total Predictions:
+            <span id="analyzerPredictionCount" class="analyzer-value">
+                0
+            </span>
+        </p>
+
+        <p>
+            Model Edge:
+            <span id="analyzerModelEdge" class="analyzer-value">
+                N/A
+            </span>
+        </p>
+
+        <button id="viewAnalysisBtn" class="analyzer-button">
+            View Detailed Analysis
+        </button>
+    </div>
 
     <h3>
         📋 Activity Log
@@ -137,19 +662,23 @@
 
     </div>
 
-</div>
-
-<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ccc;">
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ccc;">
     <button id="startAutomationBtn" style="width: 100%; padding: 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; font-size: 14px; font-weight: bold;">
         🚀 START AUTOMATION
     </button>
     <button id="stopAutomationBtn" style="width: 100%; padding: 10px; margin-top: 10px; background-color: #f44336; color: white; border: none; cursor: pointer; font-size: 14px; font-weight: bold; display: none;">
         🛑 STOP AUTOMATION
     </button>
+    </div>
+
+    </div>
+
 </div>
 
 <script src="strategy.js"></script>
 <script src="automation.js"></script>
+<script src="analyzer.js"></script>
+<script src="logicShuffle.js"></script>
 
 <script
     type="module"

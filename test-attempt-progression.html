@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogicPilot AI - Attempt Progression Tests</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        .test-section {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-title {
+            color: #e94560;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .test-case {
+            background: #0f3460;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #e94560;
+        }
+        .test-description {
+            color: #a0a0a0;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .pass {
+            background: #2d6a4f;
+            color: #fff;
+        }
+        .fail {
+            background: #c1121f;
+            color: #fff;
+        }
+        .expected {
+            color: #00ff88;
+        }
+        .actual {
+            color: #ff6b6b;
+        }
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #ff6b6b;
+        }
+        .log-output {
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .summary {
+            background: #e94560;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>LogicPilot AI - Attempt Progression State Machine Tests</h1>
+    
+    <div class="test-section">
+        <div class="test-title">Test Suite Controls</div>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearResults()">Clear Results</button>
+        <div id="summary" class="summary" style="display: none;"></div>
+    </div>
+
+    <div id="test-results"></div>
+
+    <script>
+        // Mock AutomationState for testing
+        const AutomationState = {
+            currentAttempt: 1,
+            lastResult: null,
+            lastBetTarget: null,
+            lastBetAmount: null,
+            lastProcessedPeriodId: null,
+            lastOutcomeProcessedPeriodId: null,
+            timerAutomationEnabled: false,
+            activeLogicId: 1,
+            logicStartTime: null,
+            logicWinCount: 0,
+            logicLossCount: 0,
+            sessionId: null,
+            baselinePeriodId: null,
+            processedPeriodsBySession: new Map()
+        };
+
+        const SessionState = {
+            status: "idle",
+            totalAttempts: 0,
+            startAttempt: 1,
+            sessionTotal: 0,
+            completedAttempts: 0,
+            processedCompletions: []
+        };
+
+        // Session ID generation (from content.js)
+        function generateSessionId() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            const segment1 = Array.from({length: 2}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            const segment2 = Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            const segment3 = Array.from({length: 3}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            return `${segment1}-${segment2}-${segment3}`;
+        }
+
+        function startNewSession(baselinePeriodId = null) {
+            const newSessionId = generateSessionId();
+            AutomationState.sessionId = newSessionId;
+            AutomationState.baselinePeriodId = baselinePeriodId;
+            AutomationState.processedPeriodsBySession.set(newSessionId, new Set());
+            
+            console.log("[ATTEMPT] START");
+            console.log("[ATTEMPT] New sessionId: " + newSessionId);
+            console.log("[ATTEMPT] currentAttempt reset to A1");
+            console.log("[ATTEMPT] Baseline period: " + (baselinePeriodId || "none"));
+            
+            return newSessionId;
+        }
+
+        function clearSession() {
+            const oldSessionId = AutomationState.sessionId;
+            console.log("[SESSION] STOP sessionId=" + oldSessionId + " attemptAtStop=" + AutomationState.currentAttempt);
+            
+            // Clear session-specific data
+            AutomationState.sessionId = null;
+            AutomationState.baselinePeriodId = null;
+            
+            // Clear processed periods for the old session
+            if (oldSessionId) {
+                AutomationState.processedPeriodsBySession.delete(oldSessionId);
+            }
+        }
+
+        function initializeSessionState(totalAttempts, startAttempt = 1) {
+            const normalizedStart = Math.max(1, Number(startAttempt) || 1);
+            const normalizedTotal = Math.max(0, Number(totalAttempts) || 0);
+
+            SessionState.status = "running";
+            SessionState.totalAttempts = normalizedTotal;
+            SessionState.startAttempt = normalizedStart;
+            SessionState.sessionTotal = 0;
+            SessionState.completedAttempts = 0;
+            SessionState.processedCompletions = [];
+            AutomationState.currentAttempt = normalizedStart;
+        }
+
+        function resetSessionState(totalAttempts, startAttempt = 1) {
+            initializeSessionState(totalAttempts, startAttempt);
+            SessionState.status = "idle";
+        }
+
+        // Attempt progression logic (from content.js)
+        function processAttemptTransition(completedRoundOutcome, currentPeriodId, totalAttempts) {
+            const executedAttempt = AutomationState.currentAttempt;
+            const attemptBefore = AutomationState.currentAttempt;
+            
+            // Validate session exists
+            if (!AutomationState.sessionId) {
+                console.warn("[ATTEMPT] IGNORED STALE EVENT");
+                console.warn("[ATTEMPT] eventSessionId=null, currentSessionId=null");
+                console.warn("[ATTEMPT] period=" + currentPeriodId);
+                return false;
+            }
+
+            // Check if this is the baseline period (old DOM result) and ignore it
+            if (currentPeriodId && AutomationState.baselinePeriodId && currentPeriodId === AutomationState.baselinePeriodId) {
+                console.log("[ATTEMPT] IGNORED - Baseline period (old DOM result):", currentPeriodId);
+                console.log("[ATTEMPT] This is the period visible when START was pressed - not a new result");
+                return false;
+            }
+
+            // Session-scoped duplicate result protection
+            const sessionProcessedPeriods = AutomationState.processedPeriodsBySession.get(AutomationState.sessionId);
+            if (currentPeriodId && sessionProcessedPeriods && sessionProcessedPeriods.has(currentPeriodId)) {
+                console.log("[ATTEMPT] IGNORED DUPLICATE PERIOD");
+                console.log("[ATTEMPT] period=" + currentPeriodId + " already processed in current session");
+                return false;
+            }
+
+            // STRICT SEQUENTIAL PROGRESSION
+            if (completedRoundOutcome === "win") {
+                if (executedAttempt < totalAttempts) {
+                    console.log("[ATTEMPT] Processing NEW period: " + currentPeriodId);
+                    console.log("[ATTEMPT] Session: " + AutomationState.sessionId);
+                    console.log("[ATTEMPT] Current attempt: A" + attemptBefore);
+                    console.log("[ATTEMPT] Advancing A" + attemptBefore + " -> A" + (executedAttempt + 1));
+                    console.log("[RESULT] period=" + currentPeriodId + " result=WIN attemptBefore=" + attemptBefore);
+                    console.log("[TRANSITION] A" + attemptBefore + " → A" + (executedAttempt + 1));
+                    
+                    AutomationState.currentAttempt = executedAttempt + 1;
+                    
+                    // Mark this period as processed in the current session
+                    if (currentPeriodId && sessionProcessedPeriods) {
+                        sessionProcessedPeriods.add(currentPeriodId);
+                    }
+                    
+                    // Legacy: also mark in lastOutcomeProcessedPeriodId for backward compatibility
+                    if (currentPeriodId) {
+                        AutomationState.lastOutcomeProcessedPeriodId = currentPeriodId;
+                    }
+                } else {
+                    console.log("[Session] FINAL ATTEMPT WIN - Session complete");
+                    SessionState.status = "completed";
+                    return false;
+                }
+            } else if (completedRoundOutcome === "loss") {
+                if (executedAttempt < totalAttempts) {
+                    console.log("[ATTEMPT] Processing NEW period: " + currentPeriodId);
+                    console.log("[ATTEMPT] Session: " + AutomationState.sessionId);
+                    console.log("[ATTEMPT] Current attempt: A" + attemptBefore);
+                    console.log("[ATTEMPT] Advancing A" + attemptBefore + " -> A" + (executedAttempt + 1));
+                    console.log("[RESULT] period=" + currentPeriodId + " result=LOSS attemptBefore=" + attemptBefore);
+                    console.log("[TRANSITION] A" + attemptBefore + " → A" + (executedAttempt + 1));
+                    
+                    AutomationState.currentAttempt = executedAttempt + 1;
+                    
+                    // Mark this period as processed in the current session
+                    if (currentPeriodId && sessionProcessedPeriods) {
+                        sessionProcessedPeriods.add(currentPeriodId);
+                    }
+                    
+                    // Legacy: also mark in lastOutcomeProcessedPeriodId for backward compatibility
+                    if (currentPeriodId) {
+                        AutomationState.lastOutcomeProcessedPeriodId = currentPeriodId;
+                    }
+                } else {
+                    console.log("[Session] FINAL ATTEMPT LOSS - Session complete");
+                    SessionState.status = "completed";
+                    return false;
+                }
+            } else {
+                if (executedAttempt < totalAttempts) {
+                    console.log("[TRANSITION] A" + attemptBefore + " → A" + (executedAttempt + 1) + " (no outcome)");
+                    AutomationState.currentAttempt = executedAttempt + 1;
+                }
+            }
+
+            return true;
+        }
+
+        // Test utilities
+        let testLogs = [];
+        let testResults = [];
+
+        function log(message) {
+            testLogs.push(message);
+            console.log(message);
+        }
+
+        function clearLogs() {
+            testLogs = [];
+        }
+
+        function addTestCase(title, description, expected, actual, passed) {
+            testResults.push({
+                title,
+                description,
+                expected,
+                actual,
+                passed
+            });
+        }
+
+        function renderResults() {
+            const container = document.getElementById('test-results');
+            container.innerHTML = '';
+
+            testResults.forEach((result, index) => {
+                const section = document.createElement('div');
+                section.className = 'test-section';
+                
+                const testCase = document.createElement('div');
+                testCase.className = 'test-case';
+                
+                testCase.innerHTML = `
+                    <div class="test-title">${result.title}</div>
+                    <div class="test-description">${result.description}</div>
+                    <div class="test-result ${result.passed ? 'pass' : 'fail'}">
+                        ${result.passed ? '✅ PASS' : '❌ FAIL'}
+                    </div>
+                    <div class="expected">Expected: ${result.expected}</div>
+                    <div class="actual">Actual: ${result.actual}</div>
+                `;
+                
+                section.appendChild(testCase);
+                container.appendChild(section);
+            });
+
+            // Summary
+            const passed = testResults.filter(r => r.passed).length;
+            const total = testResults.length;
+            const summary = document.getElementById('summary');
+            summary.style.display = 'block';
+            summary.textContent = `Test Results: ${passed}/${total} passed`;
+            summary.style.background = passed === total ? '#2d6a4f' : '#c1121f';
+        }
+
+        function clearResults() {
+            testResults = [];
+            testLogs = [];
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+        }
+
+        // Test 1: START RESET
+        function testStartReset() {
+            clearLogs();
+            log("=== TEST 1: START RESET ===");
+            
+            // Simulate session running at A4
+            AutomationState.currentAttempt = 4;
+            AutomationState.sessionId = "OLD-SESSION";
+            log("Before STOP: currentAttempt = " + AutomationState.currentAttempt);
+            
+            // STOP
+            clearSession();
+            log("After STOP: sessionId = " + AutomationState.sessionId);
+            
+            // START
+            startNewSession();
+            initializeSessionState(10, 1);
+            log("After START: currentAttempt = " + AutomationState.currentAttempt);
+            
+            const passed = AutomationState.currentAttempt === 1;
+            addTestCase(
+                "TEST 1: START RESET",
+                "STOP then START should always reset to Attempt 1",
+                "currentAttempt = 1",
+                "currentAttempt = " + AutomationState.currentAttempt,
+                passed
+            );
+        }
+
+        // Test 2: WIN SEQUENCE
+        function testWinSequence() {
+            clearLogs();
+            log("=== TEST 2: WIN SEQUENCE ===");
+            
+            startNewSession();
+            initializeSessionState(10, 1);
+            const sequence = [];
+            
+            for (let i = 1; i <= 5; i++) {
+                const before = AutomationState.currentAttempt;
+                processAttemptTransition("win", "100" + i, 10);
+                const after = AutomationState.currentAttempt;
+                sequence.push(`A${before} → A${after}`);
+                log(`WIN at A${before}: A${before} → A${after}`);
+            }
+            
+            const expectedSequence = ["A1 → A2", "A2 → A3", "A3 → A4", "A4 → A5", "A5 → A6"];
+            const actualSequence = sequence.join(", ");
+            const expectedStr = expectedSequence.join(", ");
+            const passed = actualSequence === expectedStr;
+            
+            addTestCase(
+                "TEST 2: WIN SEQUENCE",
+                "WIN should advance sequentially: A1→A2→A3→A4→A5→A6",
+                expectedStr,
+                actualSequence,
+                passed
+            );
+        }
+
+        // Test 3: LOSS SEQUENCE
+        function testLossSequence() {
+            clearLogs();
+            log("=== TEST 3: LOSS SEQUENCE ===");
+            
+            startNewSession();
+            initializeSessionState(10, 1);
+            const sequence = [];
+            
+            for (let i = 1; i <= 5; i++) {
+                const before = AutomationState.currentAttempt;
+                processAttemptTransition("loss", "200" + i, 10);
+                const after = AutomationState.currentAttempt;
+                sequence.push(`A${before} → A${after}`);
+                log(`LOSS at A${before}: A${before} → A${after}`);
+            }
+            
+            const expectedSequence = ["A1 → A2", "A2 → A3", "A3 → A4", "A4 → A5", "A5 → A6"];
+            const actualSequence = sequence.join(", ");
+            const expectedStr = expectedSequence.join(", ");
+            const passed = actualSequence === expectedStr;
+            
+            addTestCase(
+                "TEST 3: LOSS SEQUENCE",
+                "LOSS should advance sequentially: A1→A2→A3→A4→A5→A6",
+                expectedStr,
+                actualSequence,
+                passed
+            );
+        }
+
+        // Test 4: MIXED RESULTS
+        function testMixedResults() {
+            clearLogs();
+            log("=== TEST 4: MIXED RESULTS ===");
+            
+            startNewSession();
+            initializeSessionState(10, 1);
+            const sequence = [];
+            const results = ["win", "loss", "win", "loss", "win"];
+            
+            for (let i = 0; i < results.length; i++) {
+                const before = AutomationState.currentAttempt;
+                processAttemptTransition(results[i], "300" + i, 10);
+                const after = AutomationState.currentAttempt;
+                sequence.push(`A${before} → A${after}`);
+                log(`${results[i].toUpperCase()} at A${before}: A${before} → A${after}`);
+            }
+            
+            const expectedSequence = ["A1 → A2", "A2 → A3", "A3 → A4", "A4 → A5", "A5 → A6"];
+            const actualSequence = sequence.join(", ");
+            const expectedStr = expectedSequence.join(", ");
+            const passed = actualSequence === expectedStr;
+            
+            addTestCase(
+                "TEST 4: MIXED RESULTS",
+                "Mixed WIN/LOSS should advance sequentially: A1→A2→A3→A4→A5→A6",
+                expectedStr,
+                actualSequence,
+                passed
+            );
+        }
+
+        // Test 5: DUPLICATE RESULT
+        function testDuplicateResult() {
+            clearLogs();
+            log("=== TEST 5: DUPLICATE RESULT ===");
+            
+            startNewSession();
+            initializeSessionState(10, 1);
+            const sequence = [];
+            
+            // First result
+            const before1 = AutomationState.currentAttempt;
+            processAttemptTransition("loss", "1001", 10);
+            const after1 = AutomationState.currentAttempt;
+            sequence.push(`A${before1} → A${after1}`);
+            log(`First LOSS at A${before1}: A${before1} → A${after1}`);
+            
+            // Same result 4 more times
+            for (let i = 0; i < 4; i++) {
+                const before = AutomationState.currentAttempt;
+                processAttemptTransition("loss", "1001", 10); // Same period ID
+                const after = AutomationState.currentAttempt;
+                sequence.push(`A${before} → A${after}`);
+                log(`Duplicate LOSS attempt ${i+1}: A${before} → A${after}`);
+            }
+            
+            const expectedSequence = ["A1 → A2", "A2 → A2", "A2 → A2", "A2 → A2", "A2 → A2"];
+            const actualSequence = sequence.join(", ");
+            const expectedStr = expectedSequence.join(", ");
+            const passed = actualSequence === expectedStr;
+            
+            addTestCase(
+                "TEST 5: DUPLICATE RESULT",
+                "Same period/result should only transition once: A1→A2, then A2→A2 (duplicates ignored)",
+                expectedStr,
+                actualSequence,
+                passed
+            );
+        }
+
+        // Test 6: STOP/START
+        function testStopStart() {
+            clearLogs();
+            log("=== TEST 6: STOP/START ===");
+            
+            startNewSession();
+            initializeSessionState(10, 1);
+            
+            // Advance to A4
+            for (let i = 1; i < 4; i++) {
+                processAttemptTransition("win", "400" + i, 10);
+            }
+            log("Before STOP: currentAttempt = " + AutomationState.currentAttempt);
+            
+            // STOP
+            clearSession();
+            const attemptAtStop = AutomationState.currentAttempt;
+            log("After STOP: sessionId = " + AutomationState.sessionId + ", attemptAtStop = " + attemptAtStop);
+            
+            // START
+            startNewSession();
+            initializeSessionState(10, 1);
+            log("After START: currentAttempt = " + AutomationState.currentAttempt);
+            
+            const passed = AutomationState.currentAttempt === 1;
+            addTestCase(
+                "TEST 6: STOP/START",
+                "After A1→A2→A3→A4, STOP then START should reset to A1",
+                "currentAttempt = 1",
+                "currentAttempt = " + AutomationState.currentAttempt,
+                passed
+            );
+        }
+
+        // Test 7: OLD QUEUED EVENT
+        function testOldQueuedEvent() {
+            clearLogs();
+            log("=== TEST 7: OLD QUEUED EVENT ===");
+            
+            // Session 1
+            startNewSession();
+            initializeSessionState(10, 1);
+            const session1Id = AutomationState.sessionId;
+            log("Session 1 started: sessionId = " + session1Id);
+            
+            // Advance to A2
+            processAttemptTransition("win", "5001", 10);
+            log("Session 1: currentAttempt = " + AutomationState.currentAttempt);
+            
+            // STOP Session 1
+            clearSession();
+            log("Session 1 stopped");
+            
+            // START Session 2
+            startNewSession();
+            initializeSessionState(10, 1);
+            const session2Id = AutomationState.sessionId;
+            log("Session 2 started: sessionId = " + session2Id + ", currentAttempt = " + AutomationState.currentAttempt);
+            
+            // Simulate old event from Session 1 - event carries old session ID
+            // In real scenario, the event would have session1Id embedded
+            // We simulate this by directly calling with the understanding that
+            // the validation would check event.sessionId !== currentSessionId
+            const beforeOldEvent = AutomationState.currentAttempt;
+            
+            // Temporarily set to null to simulate no session (old event scenario)
+            const originalSessionId = AutomationState.sessionId;
+            AutomationState.sessionId = null; // Simulate old event with no valid session
+            
+            processAttemptTransition("loss", "5002", 10); // Simulates old event
+            
+            // Restore current session
+            AutomationState.sessionId = originalSessionId;
+            
+            const afterOldEvent = AutomationState.currentAttempt;
+            log("Old Session 1 event rejected: stayed at A" + afterOldEvent);
+            
+            const passed = AutomationState.currentAttempt === 1;
+            addTestCase(
+                "TEST 7: OLD QUEUED EVENT",
+                "Old session events should not affect new session (stays at A1)",
+                "currentAttempt = 1",
+                "currentAttempt = " + AutomationState.currentAttempt,
+                passed
+            );
+        }
+
+        // Test 8: MAX ATTEMPT
+        function testMaxAttempt() {
+            clearLogs();
+            log("=== TEST 8: MAX ATTEMPT ===");
+            
+            startNewSession();
+            initializeSessionState(10, 1);
+            const sequence = [];
+            
+            // Advance to max attempt
+            for (let i = 1; i < 10; i++) {
+                const before = AutomationState.currentAttempt;
+                processAttemptTransition("win", "600" + i, 10);
+                const after = AutomationState.currentAttempt;
+                sequence.push(`A${before} → A${after}`);
+            }
+            
+            log("Reached A10, currentAttempt = " + AutomationState.currentAttempt);
+            
+            // Try to go beyond max
+            const beforeFinal = AutomationState.currentAttempt;
+            processAttemptTransition("win", "6010", 10);
+            const afterFinal = AutomationState.currentAttempt;
+            log("Attempt to go beyond max: A" + beforeFinal + " → A" + afterFinal);
+            
+            const passed = SessionState.status === "completed" && AutomationState.currentAttempt === 10;
+            addTestCase(
+                "TEST 8: MAX ATTEMPT",
+                "Should stop at max attempt (10) and not create A11",
+                "Session status = completed, currentAttempt = 10",
+                "Session status = " + SessionState.status + ", currentAttempt = " + AutomationState.currentAttempt,
+                passed
+            );
+        }
+
+        // Test 9: BASELINE PERIOD HANDLING
+        function testBaselinePeriodHandling() {
+            clearLogs();
+            log("=== TEST 9: BASELINE PERIOD HANDLING ===");
+            
+            // Simulate DOM having period 1005 before START
+            const existingPeriod = "1005";
+            
+            // START with baseline period
+            startNewSession(existingPeriod);
+            initializeSessionState(10, 1);
+            log("START with baseline period: " + existingPeriod);
+            log("currentAttempt = " + AutomationState.currentAttempt);
+            
+            // Try to process the baseline period (should be ignored)
+            const beforeBaseline = AutomationState.currentAttempt;
+            processAttemptTransition("win", existingPeriod, 10);
+            const afterBaseline = AutomationState.currentAttempt;
+            log("Baseline period processed: A" + beforeBaseline + " → A" + afterBaseline);
+            
+            // Process a genuinely new period (should advance)
+            const beforeNew = AutomationState.currentAttempt;
+            processAttemptTransition("win", "1006", 10);
+            const afterNew = AutomationState.currentAttempt;
+            log("New period processed: A" + beforeNew + " → A" + afterNew);
+            
+            const passed = afterBaseline === 1 && afterNew === 2;
+            addTestCase(
+                "TEST 9: BASELINE PERIOD HANDLING",
+                "Baseline period should be ignored, new period should advance: A1→A1→A2",
+                "currentAttempt = 2 (after new period)",
+                "currentAttempt = " + AutomationState.currentAttempt,
+                passed
+            );
+        }
+
+        // Test 10: OLD CALLBACK PROTECTION
+        function testOldCallbackProtection() {
+            clearLogs();
+            log("=== TEST 10: OLD CALLBACK PROTECTION ===");
+            
+            // Session 1
+            startNewSession();
+            initializeSessionState(10, 1);
+            const session1Id = AutomationState.sessionId;
+            log("Session 1 started: sessionId = " + session1Id);
+            
+            // Advance to A2
+            processAttemptTransition("win", "7001", 10);
+            log("Session 1: currentAttempt = " + AutomationState.currentAttempt);
+            
+            // STOP Session 1
+            clearSession();
+            log("Session 1 stopped");
+            
+            // START Session 2
+            startNewSession();
+            initializeSessionState(10, 1);
+            const session2Id = AutomationState.sessionId;
+            log("Session 2 started: sessionId = " + session2Id + ", currentAttempt = " + AutomationState.currentAttempt);
+            
+            // Simulate old callback - event has no session ID (invalid)
+            const originalSessionId = AutomationState.sessionId;
+            AutomationState.sessionId = null; // Simulate old callback with invalid session
+            
+            const beforeCallback = AutomationState.currentAttempt;
+            processAttemptTransition("loss", "7002", 10);
+            const afterCallback = AutomationState.currentAttempt;
+            log("Old callback processed: A" + beforeCallback + " → A" + afterCallback);
+            
+            // Restore current session
+            AutomationState.sessionId = originalSessionId;
+            
+            const passed = AutomationState.currentAttempt === 1;
+            addTestCase(
+                "TEST 10: OLD CALLBACK PROTECTION",
+                "Old callbacks should not affect new session (stays at A1)",
+                "currentAttempt = 1",
+                "currentAttempt = " + AutomationState.currentAttempt,
+                passed
+            );
+        }
+
+        function runAllTests() {
+            clearResults();
+            
+            testStartReset();
+            testWinSequence();
+            testLossSequence();
+            testMixedResults();
+            testDuplicateResult();
+            testStopStart();
+            testOldQueuedEvent();
+            testMaxAttempt();
+            testBaselinePeriodHandling();
+            testOldCallbackProtection();
+            
+            renderResults();
+        }
+    </script>
+</body>
+</html>
